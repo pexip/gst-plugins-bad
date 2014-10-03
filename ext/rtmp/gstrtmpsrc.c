@@ -68,9 +68,12 @@ static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
 enum
 {
   PROP_0,
-  PROP_LOCATION
+  PROP_LOCATION,
+  PROP_BYTES_IN,
+  PROP_CLIENT_BW,
+  PROP_SERVER_BW,
 #if 0
-      PROP_SWF_URL,
+  PROP_SWF_URL,
   PROP_PAGE_URL
 #endif
 };
@@ -124,6 +127,21 @@ gst_rtmp_src_class_init (GstRTMPSrcClass * klass)
       g_param_spec_string ("location", "RTMP Location",
           "Location of the RTMP url to read",
           DEFAULT_LOCATION, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_BYTES_IN,
+      g_param_spec_int ("bytes-in", "Bytes in",
+          "Number of bytes received (-1 = not available)", -1, G_MAXINT, -1,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_CLIENT_BW,
+      g_param_spec_int ("client-bandwidth", "Client bandwidth",
+          "Client bandwidth (-1 = not available)", -1, G_MAXINT, -1,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_SERVER_BW,
+      g_param_spec_int ("server-bandwidth", "Server bandwidth",
+          "Server bandwidth (-1 = not available)", -1, G_MAXINT, -1,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&srctemplate));
@@ -289,6 +307,24 @@ gst_rtmp_src_get_property (GObject * object, guint prop_id, GValue * value,
   switch (prop_id) {
     case PROP_LOCATION:
       g_value_set_string (value, src->uri);
+      break;
+    case PROP_BYTES_IN:
+      if (src->rtmp)
+        g_value_set_int (value, src->rtmp->m_nBytesIn);
+      else
+        g_value_set_int (value, -1);
+      break;
+    case PROP_CLIENT_BW:
+      if (src->rtmp)
+        g_value_set_int (value, src->rtmp->m_nClientBW);
+      else
+        g_value_set_int (value, -1);
+      break;
+    case PROP_SERVER_BW:
+      if (src->rtmp)
+        g_value_set_int (value, src->rtmp->m_nServerBW);
+      else
+        g_value_set_int (value, -1);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
