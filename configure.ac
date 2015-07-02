@@ -1616,6 +1616,10 @@ AG_GST_CHECK_FEATURE(APPLE_MEDIA, [Apple video], applemedia, [
   if test "x$HAVE_IOS" = "xno"; then
     AC_CHECK_HEADER(VideoToolbox/VideoToolbox.h,, HAVE_APPLE_MEDIA="no")
   fi
+  if test "x$HAVE_GL" = "xno"; then
+    AC_MSG_WARN([Not compiling applemedia plugin as it requires GL])
+    HAVE_APPLE_MEDIA="no"
+  fi
 ])
 
 dnl in case header SystemConfiguration/SystemConfiguration.h is found on other platforms
