@@ -487,6 +487,7 @@ gst_pcap_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
             gst_adapter_flush (self->adapter, offset);
             out_buf = gst_adapter_take_buffer_fast (self->adapter,
                 payload_size);
+            gst_adapter_flush (self->adapter, self->cur_packet_size);
 
             if (GST_CLOCK_TIME_IS_VALID (self->cur_ts)) {
               if (!GST_CLOCK_TIME_IS_VALID (self->base_ts))
@@ -529,6 +530,10 @@ gst_pcap_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 
         self->cur_ts = ts_sec * GST_SECOND + ts_usec * GST_USECOND;
         self->cur_packet_size = incl_len;
+
+        GST_LOG_OBJECT (self,
+            "packet header ts_sec %u, ts_usec %u, incl_len %u",
+            ts_sec, ts_usec, incl_len);
       }
     } else {
       guint32 magic;
