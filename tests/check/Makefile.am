@@ -236,10 +236,11 @@ VALGRIND_TESTS_DISABLE = \
 # dashdemux: fails because it uses random data streams but dashdemux nowadays
 #            actually looks at the data and doesn't like randomness
 noinst_PROGRAMS = \
-	pipelines/streamheader \
 	$(check_dash_demux) \
 	$(check_ipcpipeline) \
 	$(check_neon)
+
+#	pipelines/streamheader
 
 check_PROGRAMS = \
 	generic/states \
