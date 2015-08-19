@@ -222,8 +222,9 @@ VALGRIND_TESTS_DISABLE = \
 # these tests don't even pass
 # neon: too flaky (almost always fails 'the first time')
 noinst_PROGRAMS = \
-	pipelines/streamheader \
 	$(check_neon)
+
+#	pipelines/streamheader
 
 check_PROGRAMS = \
 	generic/states \
