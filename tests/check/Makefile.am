@@ -60,6 +60,12 @@ else
 check_faad =
 endif
 
+if USE_RTMP
+check_rtmp = elements/rtmp
+else
+check_rtmp =
+endif
+
 if USE_VOAACENC
 check_voaacenc = elements/voaacenc
 else
@@ -248,6 +254,7 @@ check_PROGRAMS = \
 	$(check_dash) \
 	$(check_faac)  \
 	$(check_faad)  \
+	$(check_rtmp)  \
 	$(check_voaacenc) \
 	$(check_voamrwbenc) \
 	$(check_mpeg2enc)  \
@@ -419,6 +426,12 @@ elements_faac_CFLAGS = \
 elements_faac_LDADD = \
 	$(GST_PLUGINS_BASE_LIBS) $(GST_BASE_LIBS) $(GST_LIBS) $(LDADD) \
 	$(GST_AUDIO_LIBS)
+
+elements_rtmp_CFLAGS = \
+	$(GST_PLUGINS_BASE_CFLAGS) \
+	$(GST_BASE_CFLAGS) $(GST_CFLAGS) $(AM_CFLAGS)
+elements_rtmp_LDADD = \
+	$(GST_PLUGINS_BASE_LIBS) $(GST_BASE_LIBS) $(GST_LIBS) $(LDADD)
 
 elements_gdppay_CFLAGS = \
 	$(GST_PLUGINS_BASE_CFLAGS) $(GST_BASE_CFLAGS) $(GST_CFLAGS) $(AM_CFLAGS)
