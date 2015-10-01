@@ -73,6 +73,7 @@ static void gst_rtmp_sink_set_property (GObject * object, guint prop_id,
 static void gst_rtmp_sink_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void gst_rtmp_sink_finalize (GObject * object);
+static gboolean gst_rtmp_sink_unlock (GstBaseSink * sink);
 static gboolean gst_rtmp_sink_stop (GstBaseSink * sink);
 static gboolean gst_rtmp_sink_start (GstBaseSink * sink);
 static gboolean gst_rtmp_sink_event (GstBaseSink * sink, GstEvent * event);
@@ -113,6 +114,7 @@ gst_rtmp_sink_class_init (GstRTMPSinkClass * klass)
 
   gstbasesink_class->start = GST_DEBUG_FUNCPTR (gst_rtmp_sink_start);
   gstbasesink_class->stop = GST_DEBUG_FUNCPTR (gst_rtmp_sink_stop);
+  gstbasesink_class->unlock = GST_DEBUG_FUNCPTR (gst_rtmp_sink_unlock);
   gstbasesink_class->render = GST_DEBUG_FUNCPTR (gst_rtmp_sink_render);
   gstbasesink_class->event = gst_rtmp_sink_event;
 
@@ -183,6 +185,23 @@ gst_rtmp_sink_start (GstBaseSink * basesink)
 
   return TRUE;
 }
+
+static gboolean
+gst_rtmp_sink_unlock (GstBaseSink * basesink)
+{
+  GstRTMPSink *rtmpsink = GST_RTMP_SINK (basesink);
+
+  GST_DEBUG_OBJECT (rtmpsink, "unlock");
+
+  /* This closes the socket, which means that any pending socket calls
+   * error out. */
+  if (rtmpsink->rtmp) {
+    RTMP_Close (rtmpsink->rtmp);
+  }
+
+  return TRUE;
+}
+
 
 static gboolean
 gst_rtmp_sink_stop (GstBaseSink * basesink)
