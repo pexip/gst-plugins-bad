@@ -265,6 +265,7 @@ check_PROGRAMS = \
 	$(check_mpg123) \
 	elements/mxfdemux \
 	elements/mxfmux \
+	elements/netsim \
 	elements/pcapparse \
 	elements/rtponvif \
 	elements/id3mux \
