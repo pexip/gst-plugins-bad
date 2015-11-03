@@ -602,6 +602,10 @@ gst_rtmp_src_start (GstBaseSrc * basesrc)
 
 #undef STR2AVAL
 
+#define GST_LIVE_GET_LOCK(elem)               (&GST_BASE_SRC_CAST(elem)->live_lock)
+#define GST_LIVE_LOCK(elem)                   g_mutex_lock(GST_LIVE_GET_LOCK(elem))
+#define GST_LIVE_UNLOCK(elem)                 g_mutex_unlock(GST_LIVE_GET_LOCK(elem))
+
 static gboolean
 gst_rtmp_src_unlock (GstBaseSrc * basesrc)
 {
@@ -611,9 +615,11 @@ gst_rtmp_src_unlock (GstBaseSrc * basesrc)
 
   /* This closes the socket, which means that any pending socket calls
    * error out. */
+  GST_LIVE_LOCK (basesrc);
   if (rtmpsrc->rtmp) {
     RTMP_Close (rtmpsrc->rtmp);
   }
+  GST_LIVE_UNLOCK (basesrc);
 
   return TRUE;
 }
