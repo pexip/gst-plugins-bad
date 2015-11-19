@@ -57,6 +57,8 @@
 #include <winsock2.h>
 #endif
 
+#include <sys/socket.h>
+
 GST_DEBUG_CATEGORY_STATIC (rtmpsrc_debug);
 #define GST_CAT_DEFAULT rtmpsrc_debug
 
@@ -352,6 +354,17 @@ gst_rtmp_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
 
   g_return_val_if_fail (src->rtmp != NULL, GST_FLOW_ERROR);
 
+  /* open if required */
+  if (!RTMP_IsConnected (src->rtmp)) {
+    if (!RTMP_Connect (src->rtmp, NULL)) {
+      GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, (NULL),
+          ("Could not connect to RTMP stream \"%s\" for reading", src->uri));
+      RTMP_Free (src->rtmp);
+      src->rtmp = NULL;
+      return GST_FLOW_ERROR;
+    }
+  }
+
   size = GST_BASE_SRC_CAST (pushsrc)->blocksize;
 
   GST_DEBUG ("reading from %" G_GUINT64_FORMAT
@@ -621,17 +634,6 @@ gst_rtmp_src_start (GstBaseSrc * basesrc)
   }
   src->seekable = !(src->rtmp->Link.lFlags & RTMP_LF_LIVE);
   GST_INFO_OBJECT (src, "seekable %d", src->seekable);
-
-  /* open if required */
-  if (!RTMP_IsConnected (src->rtmp)) {
-    if (!RTMP_Connect (src->rtmp, NULL)) {
-      GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, (NULL),
-          ("Could not connect to RTMP stream \"%s\" for reading", src->uri));
-      RTMP_Free (src->rtmp);
-      src->rtmp = NULL;
-      return FALSE;
-    }
-  }
 
   return TRUE;
 }
