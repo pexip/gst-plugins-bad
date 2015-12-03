@@ -442,12 +442,14 @@ gst_rtmp_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
 
 read_failed:
   {
+    gst_buffer_unmap (buf, &map);
     gst_buffer_unref (buf);
     GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), ("Failed to read data"));
     return GST_FLOW_ERROR;
   }
 eos:
   {
+    gst_buffer_unmap (buf, &map);
     gst_buffer_unref (buf);
     if (src->cur_offset == 0) {
       GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL),
@@ -707,6 +709,7 @@ gst_rtmp_src_stop (GstBaseSrc * basesrc)
   src = GST_RTMP_SRC (basesrc);
 
   if (src->rtmp) {
+    RTMP_Close (src->rtmp);
     RTMP_Free (src->rtmp);
     src->rtmp = NULL;
   }
