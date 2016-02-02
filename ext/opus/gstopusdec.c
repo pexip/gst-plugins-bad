@@ -441,7 +441,8 @@ opus_dec_chain_parse_data (GstOpusDec * dec, GstBuffer * buffer)
     size = 0;
   }
 
-  if (gst_buffer_get_size (buffer) == 0) {
+  if ((!dec->use_inband_fec && gst_buffer_get_size (buffer) == 0) ||
+      (dec->use_inband_fec && gst_buffer_get_size (dec->last_buffer) == 0)) {
     GstClockTime const opus_plc_alignment = 2500 * GST_USECOND;
     GstClockTime aligned_missing_duration;
     GstClockTime missing_duration = GST_BUFFER_DURATION (buffer);
