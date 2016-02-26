@@ -1345,6 +1345,8 @@ gst_adaptive_demux_src_event (GstPad * pad, GstObject * parent,
           ts = start;
         } else if (rate < 0 && stop_type != GST_SEEK_TYPE_NONE) {
           ts = stop;
+        } else {
+          g_assert_not_reached ();
         }
 
         demux_class->stream_seek (stream, rate >= 0, stream_seek_flags, ts,
