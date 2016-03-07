@@ -215,7 +215,6 @@ gst_rtmp_sink_unlock (GstBaseSink * basesink)
   return TRUE;
 }
 
-
 static gboolean
 gst_rtmp_sink_stop (GstBaseSink * basesink)
 {
