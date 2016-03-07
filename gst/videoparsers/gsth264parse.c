@@ -1012,6 +1012,7 @@ gst_h264_parse_handle_frame_packetized (GstBaseParse * parse,
       if (h264parse->format == GST_H264_PARSE_FORMAT_NALU) {
         g_assert (tmp_frame.out_buffer == NULL);
         tmp_frame.out_buffer = gst_buffer_copy_region (buffer, GST_BUFFER_COPY_ALL, nalu.offset, nalu.size);
+        gst_buffer_copy_into (tmp_frame.out_buffer, tmp_frame.buffer, GST_BUFFER_COPY_METADATA, 0, -1);
       }
       ret = gst_base_parse_finish_frame (parse, &tmp_frame, nl + nalu.size);
       left -= nl + nalu.size;
