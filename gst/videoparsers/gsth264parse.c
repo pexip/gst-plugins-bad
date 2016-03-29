@@ -2110,7 +2110,7 @@ gst_h264_parse_parse_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
  * No ownership is taken of @nal */
 static GstFlowReturn
 gst_h264_parse_push_codec_buffer (GstH264Parse * h264parse,
-    GstBuffer * nal, GstClockTime ts)
+    GstBuffer * nal, GstClockTime pts, GstClockTime dts)
 {
   GstMapInfo map;
 
@@ -2119,7 +2119,8 @@ gst_h264_parse_push_codec_buffer (GstH264Parse * h264parse,
       map.data, map.size);
   gst_buffer_unmap (nal, &map);
 
-  GST_BUFFER_TIMESTAMP (nal) = ts;
+  GST_BUFFER_PTS (nal) = pts;
+  GST_BUFFER_DTS (nal) = dts;
   GST_BUFFER_DURATION (nal) = 0;
 
   return gst_pad_push (GST_BASE_PARSE_SRC_PAD (h264parse), nal);
@@ -2307,7 +2308,7 @@ gst_h264_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
             if ((codec_nal = h264parse->sps_nals[i])) {
               GST_DEBUG_OBJECT (h264parse, "sending SPS nal");
               gst_h264_parse_push_codec_buffer (h264parse, codec_nal,
-                  timestamp);
+                  GST_BUFFER_PTS (buffer), GST_BUFFER_DTS (buffer));
               h264parse->last_report = new_ts;
             }
           }
@@ -2315,7 +2316,7 @@ gst_h264_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
             if ((codec_nal = h264parse->pps_nals[i])) {
               GST_DEBUG_OBJECT (h264parse, "sending PPS nal");
               gst_h264_parse_push_codec_buffer (h264parse, codec_nal,
-                  timestamp);
+                  GST_BUFFER_PTS (buffer), GST_BUFFER_DTS (buffer));
               h264parse->last_report = new_ts;
             }
           }
