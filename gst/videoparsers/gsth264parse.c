@@ -2214,7 +2214,7 @@ gst_h264_parse_parse_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
  * No ownership is taken of @nal */
 static GstFlowReturn
 gst_h264_parse_push_codec_buffer (GstH264Parse * h264parse,
-    GstBuffer * nal, GstClockTime ts)
+    GstBuffer * nal, GstClockTime pts, GstClockTime dts)
 {
   GstMapInfo map;
 
@@ -2223,7 +2223,8 @@ gst_h264_parse_push_codec_buffer (GstH264Parse * h264parse,
       map.data, map.size);
   gst_buffer_unmap (nal, &map);
 
-  GST_BUFFER_TIMESTAMP (nal) = ts;
+  GST_BUFFER_PTS (nal) = pts;
+  GST_BUFFER_DTS (nal) = dts;
   GST_BUFFER_DURATION (nal) = 0;
 
   return gst_pad_push (GST_BASE_PARSE_SRC_PAD (h264parse), nal);
@@ -2331,7 +2332,6 @@ gst_h264_parse_handle_sps_pps_nals (GstH264Parse * h264parse,
   GstBuffer *codec_nal;
   gint i;
   gboolean send_done = FALSE;
-  GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 
   if (h264parse->have_sps_in_frame && h264parse->have_pps_in_frame) {
     GST_DEBUG_OBJECT (h264parse, "SPS/PPS exist in frame, will not insert");
@@ -2344,14 +2344,16 @@ gst_h264_parse_handle_sps_pps_nals (GstH264Parse * h264parse,
     for (i = 0; i < GST_H264_MAX_SPS_COUNT; i++) {
       if ((codec_nal = h264parse->sps_nals[i])) {
         GST_DEBUG_OBJECT (h264parse, "sending SPS nal");
-        gst_h264_parse_push_codec_buffer (h264parse, codec_nal, timestamp);
+        gst_h264_parse_push_codec_buffer (h264parse, codec_nal,
+            GST_BUFFER_PTS (buffer), GST_BUFFER_DTS (buffer));
         send_done = TRUE;
       }
     }
     for (i = 0; i < GST_H264_MAX_PPS_COUNT; i++) {
       if ((codec_nal = h264parse->pps_nals[i])) {
         GST_DEBUG_OBJECT (h264parse, "sending PPS nal");
-        gst_h264_parse_push_codec_buffer (h264parse, codec_nal, timestamp);
+        gst_h264_parse_push_codec_buffer (h264parse, codec_nal,
+            GST_BUFFER_PTS (buffer), GST_BUFFER_DTS (buffer));
         send_done = TRUE;
       }
     }
@@ -2473,7 +2475,7 @@ gst_h264_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
 
       buffer = frame->buffer;
       gst_h264_parse_push_codec_buffer (h264parse, aud_buffer,
-          GST_BUFFER_TIMESTAMP (buffer));
+          GST_BUFFER_PTS (buffer), GST_BUFFER_DTS (buffer));
       gst_buffer_unref (aud_buffer);
     }
   } else {
