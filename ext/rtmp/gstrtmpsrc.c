@@ -356,11 +356,11 @@ gst_rtmp_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
   /* open if required */
   if (!RTMP_IsConnected (src->rtmp)) {
     if (!RTMP_Connect (src->rtmp, NULL)) {
-      GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, (NULL),
-          ("Could not connect to RTMP stream \"%s\" for reading", src->uri));
+      GST_ERROR_OBJECT (src,
+          "Could not connect to RTMP stream \"%s\" for reading", src->uri);
       RTMP_Free (src->rtmp);
       src->rtmp = NULL;
-      return GST_FLOW_ERROR;
+      return GST_FLOW_EOS;
     }
   }
 
