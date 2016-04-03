@@ -1,6 +1,7 @@
 /*
  * GStreamer
  * Copyright (C) 2010 Jan Schmidt <thaytan@noraisin.net>
+ * Copyright (C) 2016 Pexip <pexip.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -339,11 +340,11 @@ gst_rtmp_sink_render (GstBaseSink * bsink, GstBuffer * buf)
   /* ERRORS */
 connect_error:
   {
-    GST_ELEMENT_ERROR (sink, RESOURCE, OPEN_WRITE, (NULL),
-        ("Could not connect to RTMP stream \"%s\" for writing", sink->uri));
+    GST_ERROR_OBJECT (sink, "Could not connect to RTMP stream \"%s\" for writing",
+        sink->uri);
     sink->connecting = FALSE;
     sink->have_write_error = TRUE;
-    return GST_FLOW_ERROR;
+    return GST_FLOW_OK;
   }
 write_failed:
   {
