@@ -63,6 +63,9 @@ struct _GstRTMPSrc
   gchar *page_url;
 
   RTMP *rtmp;
+  GMutex rtmp_lock;
+  gboolean connecting;
+  gboolean first;
 
   gint64 cur_offset;
   GstClockTime last_timestamp;
