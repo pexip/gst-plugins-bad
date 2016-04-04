@@ -2165,10 +2165,16 @@ gst_h264_parse_parse_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
 
   /* don't mess with timestamps if provided by upstream,
    * particularly since our ts not that good they handle seeking etc */
-  if (h264parse->do_ts)
+  if (h264parse->do_ts) {
     gst_h264_parse_get_timestamp (h264parse,
         &GST_BUFFER_TIMESTAMP (buffer), &GST_BUFFER_DURATION (buffer),
         h264parse->frame_start);
+  } else {
+    /* As a minimum make sure that only one buffer per frame (including
+     * non-frame data) has duration larger than 0. */
+    if (!h264parse->frame_start)
+      GST_BUFFER_DURATION (buffer) = 0;
+  }
 
   if (h264parse->keyframe)
     GST_BUFFER_FLAG_UNSET (buffer, GST_BUFFER_FLAG_DELTA_UNIT);
