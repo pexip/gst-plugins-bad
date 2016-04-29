@@ -352,7 +352,7 @@ write_failed:
     if (need_unref)
       gst_buffer_unref (buf);
     sink->have_write_error = TRUE;
-    return GST_FLOW_ERROR;
+    return GST_FLOW_OK;
   }
 }
 
