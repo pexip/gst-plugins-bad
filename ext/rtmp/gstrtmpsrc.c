@@ -375,6 +375,7 @@ gst_rtmp_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
 
   if (src->first) {
     /* open the connection */
+    src->first = FALSE;
     src->connecting = TRUE;
     RTMP_LOCK (src);
 
@@ -391,7 +392,6 @@ gst_rtmp_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
     }
     RTMP_UNLOCK (src);
     src->connecting = FALSE;
-    src->first = FALSE;
   }
 
   size = GST_BASE_SRC_CAST (pushsrc)->blocksize;
@@ -723,7 +723,6 @@ gst_rtmp_src_unlock (GstBaseSrc * basesrc)
     if (src->rtmp->m_sb.sb_socket >= 0) {
       GST_DEBUG_OBJECT (src, "Shutting down internal librtmp socket");
       shutdown (src->rtmp->m_sb.sb_socket, SHUT_RDWR);
-      close (src->rtmp->m_sb.sb_socket);
     }
 
   } else {
