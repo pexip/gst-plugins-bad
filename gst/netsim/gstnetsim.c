@@ -35,7 +35,6 @@
 GST_DEBUG_CATEGORY (netsim_debug);
 #define GST_CAT_DEFAULT (netsim_debug)
 
-
 typedef enum
 {
   DISTRIBUTION_UNIFORM,
@@ -73,6 +72,7 @@ enum
   PROP_DROP_PACKETS,
   PROP_MAX_KBPS,
   PROP_MAX_BUCKET_SIZE,
+  PROP_ALLOW_REORDERING,
 };
 
 typedef struct
@@ -94,6 +94,7 @@ struct _GstNetSimPrivate
   gsize bucket_size;
   GstClockTime prev_time;
   NormalDistributionState delay_state;
+  gint64 last_ready_time;
 
   /* properties */
   gint min_delay;
@@ -105,6 +106,7 @@ struct _GstNetSimPrivate
   guint drop_packets;
   gint max_kbps;
   gint max_bucket_size;
+  gboolean allow_reordering;
 };
 
 /* these numbers are nothing but wild guesses and dont reflect any reality */
@@ -117,6 +119,7 @@ struct _GstNetSimPrivate
 #define DEFAULT_DROP_PACKETS 0
 #define DEFAULT_MAX_KBPS -1
 #define DEFAULT_MAX_BUCKET_SIZE -1
+#define DEFAULT_ALLOW_REORDERING TRUE
 
 #define GST_NET_SIM_GET_PRIVATE(o) \
   (G_TYPE_INSTANCE_GET_PRIVATE ((o), GST_TYPE_NET_SIM, GstNetSimPrivate))
@@ -134,6 +137,23 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_STATIC_CAPS_ANY);
 
 G_DEFINE_TYPE (GstNetSim, gst_net_sim, GST_TYPE_ELEMENT);
+
+static gboolean
+gst_net_sim_source_dispatch (GSource * source,
+    GSourceFunc callback, gpointer user_data)
+{
+  (void)source;
+  callback (user_data);
+  return FALSE;
+}
+
+GSourceFuncs gst_net_sim_source_funcs =
+{
+  NULL, /* prepare */
+  NULL, /* check */
+  gst_net_sim_source_dispatch,
+  NULL  /* finalize */
+};
 
 static void
 gst_net_sim_loop (GstNetSim * netsim)
@@ -355,7 +375,6 @@ get_random_value_gamma (GRand * rand_seed, gint32 low, gint32 high,
   return round (x + low);
 }
 
-
 static GstFlowReturn
 gst_net_sim_delay_buffer (GstNetSim * netsim, GstBuffer * buf)
 {
@@ -368,6 +387,7 @@ gst_net_sim_delay_buffer (GstNetSim * netsim, GstBuffer * buf)
     gint delay;
     PushBufferCtx *ctx;
     GSource *source;
+    gint64 ready_time;
 
     switch (priv->delay_distribution) {
       case DISTRIBUTION_UNIFORM:
@@ -391,9 +411,17 @@ gst_net_sim_delay_buffer (GstNetSim * netsim, GstBuffer * buf)
       delay = 0;
 
     ctx = push_buffer_ctx_new (priv->srcpad, buf);
-    source = g_timeout_source_new (delay);
 
-    GST_DEBUG_OBJECT (netsim, "Delaying packet by %d", delay);
+    source = g_source_new (&gst_net_sim_source_funcs, sizeof (GSource));
+    ready_time = g_get_monotonic_time () + delay * 1000;
+    if (!priv->allow_reordering && ready_time < priv->last_ready_time)
+      ready_time = priv->last_ready_time + 1;
+
+    GST_DEBUG_OBJECT (netsim, "Delaying packet by %ldms",
+        (ready_time - priv->last_ready_time) / 1000);
+    priv->last_ready_time = ready_time;
+
+    g_source_set_ready_time (source, ready_time);
     g_source_set_callback (source, (GSourceFunc) push_buffer_ctx_push,
         ctx, (GDestroyNotify) push_buffer_ctx_free);
     g_source_attach (source, g_main_loop_get_context (priv->main_loop));
@@ -539,9 +567,6 @@ gst_net_sim_set_property (GObject * object,
   GstNetSimPrivate *priv = netsim->priv;
 
   switch (prop_id) {
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
     case PROP_MIN_DELAY:
       priv->min_delay = g_value_get_int (value);
       break;
@@ -571,6 +596,12 @@ gst_net_sim_set_property (GObject * object,
       if (priv->max_bucket_size != -1)
         priv->bucket_size = priv->max_bucket_size * 1000;
       break;
+    case PROP_ALLOW_REORDERING:
+      priv->allow_reordering = g_value_get_boolean (value);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
   }
 }
 
@@ -582,9 +613,6 @@ gst_net_sim_get_property (GObject * object,
   GstNetSimPrivate *priv = netsim->priv;
 
   switch (prop_id) {
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
     case PROP_MIN_DELAY:
       g_value_set_int (value, priv->min_delay);
       break;
@@ -611,6 +639,12 @@ gst_net_sim_get_property (GObject * object,
       break;
     case PROP_MAX_BUCKET_SIZE:
       g_value_set_int (value, priv->max_bucket_size);
+      break;
+    case PROP_ALLOW_REORDERING:
+      g_value_set_boolean (value, priv->allow_reordering);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
 }
@@ -746,6 +780,12 @@ gst_net_sim_class_init (GstNetSimClass * klass)
       g_param_spec_int ("max-bucket-size", "Maximum Bucket Size (Kb)",
           "The size of the token bucket, related to burstiness resilience "
           "(-1 = unlimited)", -1, G_MAXINT, DEFAULT_MAX_BUCKET_SIZE,
+          G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_ALLOW_REORDERING,
+      g_param_spec_boolean ("allow-reordering", "Allow Reordering",
+          "When delaying packets, are they allowed to be reordered or not",
+          DEFAULT_ALLOW_REORDERING,
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
 
   GST_DEBUG_CATEGORY_INIT (netsim_debug, "netsim", 0, "Network simulator");
