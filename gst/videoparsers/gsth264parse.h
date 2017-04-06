@@ -129,6 +129,7 @@ struct _GstH264Parse
 
   /* props */
   gint interval;
+  gboolean check_aud;
 
   GstClockTime pending_key_unit_ts;
   GstEvent *force_key_unit_event;
