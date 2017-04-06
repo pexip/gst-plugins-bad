@@ -37,11 +37,13 @@ GST_DEBUG_CATEGORY (h264_parse_debug);
 #define GST_CAT_DEFAULT h264_parse_debug
 
 #define DEFAULT_CONFIG_INTERVAL      (0)
+#define DEFAULT_CHECK_AUD            (TRUE)
 
 enum
 {
   PROP_0,
-  PROP_CONFIG_INTERVAL
+  PROP_CONFIG_INTERVAL,
+  PROP_CHECK_AUD,
 };
 
 enum
@@ -135,6 +137,12 @@ gst_h264_parse_class_init (GstH264ParseClass * klass)
           "will be multiplexed in the data stream when detected.) "
           "(0 = disabled, -1 = send with every IDR frame)",
           -1, 3600, DEFAULT_CONFIG_INTERVAL,
+          G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_CHECK_AUD,
+      g_param_spec_boolean ("check-aud", "Check AUD",
+          "Check and insert access unit delimiters if needed",
+          DEFAULT_CHECK_AUD,
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
 
   /* Override BaseParse vfuncs */
@@ -2422,7 +2430,8 @@ gst_h264_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
 
   /* In case of byte-stream, insert au delimeter by default
    * if it doesn't exist */
-  if (h264parse->aud_insert && h264parse->format == GST_H264_PARSE_FORMAT_BYTE) {
+  if (h264parse->check_aud && h264parse->aud_insert &&
+      h264parse->format == GST_H264_PARSE_FORMAT_BYTE) {
     if (h264parse->align == GST_H264_PARSE_ALIGN_AU) {
       GstMemory *mem =
           gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, (guint8 *) au_delim,
@@ -2958,6 +2967,9 @@ gst_h264_parse_set_property (GObject * object, guint prop_id,
     case PROP_CONFIG_INTERVAL:
       parse->interval = g_value_get_int (value);
       break;
+    case PROP_CHECK_AUD:
+      parse->check_aud = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2975,6 +2987,9 @@ gst_h264_parse_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_CONFIG_INTERVAL:
       g_value_set_int (value, parse->interval);
+      break;
+    case PROP_CHECK_AUD:
+      g_value_set_boolean (value, parse->check_aud);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
