@@ -33,7 +33,7 @@ G_BEGIN_DECLS
 #define GST_QTKIT_VIDEO_SRC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_CAST ((klass), GST_TYPE_QTKIT_VIDEO_SRC, GstQTKitVideoSrcClass))
 #define GST_QTKIT_VIDEO_SRC_IMPL(obj) \
-  ((GstQTKitVideoSrcImpl *) GST_QTKIT_VIDEO_SRC_CAST (obj)->impl)
+  ((__bridge GstQTKitVideoSrcImpl *) GST_QTKIT_VIDEO_SRC_CAST (obj)->impl)
 #define GST_IS_QTKIT_VIDEO_SRC(obj) \
   (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_QTKIT_VIDEO_SRC))
 #define GST_IS_QTKIT_VIDEO_SRC_CLASS(klass) \

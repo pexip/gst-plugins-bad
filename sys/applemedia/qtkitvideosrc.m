@@ -184,7 +184,6 @@ G_DEFINE_TYPE (GstQTKitVideoSrc, gst_qtkit_video_src, GST_TYPE_PUSH_SRC);
     }
     device = [devices objectAtIndex:deviceIndex];
   }
-  [device retain];
 
   GST_INFO ("Opening '%s'", [[device localizedDisplayName] UTF8String]);
 
@@ -200,7 +199,6 @@ G_DEFINE_TYPE (GstQTKitVideoSrc, gst_qtkit_video_src, GST_TYPE_PUSH_SRC);
   /* ERRORS */
 openFailed:
   {
-    [device release];
     device = nil;
 
     return NO;
@@ -211,16 +209,9 @@ openFailed:
 {
   g_assert (![session isRunning]);
 
-  [session release];
   session = nil;
-
-  [input release];
   input = nil;
-
-  [output release];
   output = nil;
-
-  [device release];
   device = nil;
 }
 
@@ -333,9 +324,7 @@ openFailed:
   [session stopRunning];
   [output setDelegate:nil];
 
-  [queueLock release];
   queueLock = nil;
-  [queue release];
   queue = nil;
 
   gst_gl_context_helper_free (ctxh);
@@ -436,7 +425,7 @@ openFailed:
   if ([queue count] == FRAME_QUEUE_SIZE)
     [queue removeLastObject];
 
-  [queue insertObject:(id)videoFrame
+  [queue insertObject:(__bridge id)videoFrame
               atIndex:0];
 
   [queueLock unlockWithCondition:HAS_FRAME_OR_STOP_REQUEST];
@@ -452,7 +441,7 @@ openFailed:
     return GST_FLOW_FLUSHING;
   }
 
-  frame = (CVPixelBufferRef) [queue lastObject];
+  frame = (__bridge CVPixelBufferRef) [queue lastObject];
   CVBufferRetain (frame);
   [queue removeLastObject];
   [queueLock unlockWithCondition:
@@ -570,19 +559,10 @@ gst_qtkit_video_src_class_init (GstQTKitVideoSrcClass * klass)
       0, "Mac OS X QTKit video source");
 }
 
-#define OBJC_CALLOUT_BEGIN() \
-  NSAutoreleasePool *pool; \
-  \
-  pool = [[NSAutoreleasePool alloc] init]
-#define OBJC_CALLOUT_END() \
-  [pool release]
-
 static void
 gst_qtkit_video_src_init (GstQTKitVideoSrc * src)
 {
-  OBJC_CALLOUT_BEGIN ();
-  src->impl = [[GstQTKitVideoSrcImpl alloc] initWithSrc:GST_PUSH_SRC (src)];
-  OBJC_CALLOUT_END ();
+  src->impl = (__bridge_retained gpointer)[[GstQTKitVideoSrcImpl alloc] initWithSrc:GST_PUSH_SRC (src)];
 
   /* pretend to be async so we can spin the mainRunLoop from the main thread if
    * needed (see ::start) */
@@ -592,10 +572,6 @@ gst_qtkit_video_src_init (GstQTKitVideoSrc * src)
 static void
 gst_qtkit_video_src_finalize (GObject * obj)
 {
-  OBJC_CALLOUT_BEGIN ();
-  [GST_QTKIT_VIDEO_SRC_IMPL (obj) release];
-  OBJC_CALLOUT_END ();
-
   G_OBJECT_CLASS (gst_qtkit_video_src_parent_class)->finalize (obj);
 }
 
@@ -634,107 +610,53 @@ gst_qtkit_video_src_set_property (GObject * object, guint prop_id,
 static GstStateChangeReturn
 gst_qtkit_video_src_change_state (GstElement * element, GstStateChange transition)
 {
-  GstStateChangeReturn ret;
-
-  OBJC_CALLOUT_BEGIN ();
-  ret = [GST_QTKIT_VIDEO_SRC_IMPL (element) changeState: transition];
-  OBJC_CALLOUT_END ();
-
-  return ret;
+  return [GST_QTKIT_VIDEO_SRC_IMPL (element) changeState: transition];
 }
 
 static gboolean
 gst_qtkit_video_src_set_caps (GstBaseSrc * basesrc, GstCaps * caps)
 {
-  gboolean ret;
-
-  OBJC_CALLOUT_BEGIN ();
-  ret = [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) setCaps:caps];
-  OBJC_CALLOUT_END ();
-
-  return ret;
+  return [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) setCaps:caps];
 }
 
 static gboolean
 gst_qtkit_video_src_start (GstBaseSrc * basesrc)
 {
-  gboolean ret;
-
-  OBJC_CALLOUT_BEGIN ();
-  ret = [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) start];
-  OBJC_CALLOUT_END ();
-
-  return ret;
+  return [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) start];
 }
 
 static gboolean
 gst_qtkit_video_src_stop (GstBaseSrc * basesrc)
 {
-  gboolean ret;
-
-  OBJC_CALLOUT_BEGIN ();
-  ret = [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) stop];
-  OBJC_CALLOUT_END ();
-
-  return ret;
+  return [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) stop];
 }
 
 static gboolean
 gst_qtkit_video_src_query (GstBaseSrc * basesrc, GstQuery * query)
 {
-  gboolean ret;
-
-  OBJC_CALLOUT_BEGIN ();
-  ret = [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) query:query];
-  OBJC_CALLOUT_END ();
-
-  return ret;
+  return [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) query:query];
 }
 
 static gboolean
 gst_qtkit_video_src_unlock (GstBaseSrc * basesrc)
 {
-  gboolean ret;
-
-  OBJC_CALLOUT_BEGIN ();
-  ret = [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) unlock];
-  OBJC_CALLOUT_END ();
-
-  return ret;
+  return [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) unlock];
 }
 
 static gboolean
 gst_qtkit_video_src_unlock_stop (GstBaseSrc * basesrc)
 {
-  gboolean ret;
-
-  OBJC_CALLOUT_BEGIN ();
-  ret = [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) unlockStop];
-  OBJC_CALLOUT_END ();
-
-  return ret;
+  return [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) unlockStop];
 }
 
 static GstFlowReturn
 gst_qtkit_video_src_create (GstPushSrc * pushsrc, GstBuffer ** buf)
 {
-  GstFlowReturn ret;
-
-  OBJC_CALLOUT_BEGIN ();
-  ret = [GST_QTKIT_VIDEO_SRC_IMPL (pushsrc) create: buf];
-  OBJC_CALLOUT_END ();
-
-  return ret;
+  return [GST_QTKIT_VIDEO_SRC_IMPL (pushsrc) create: buf];
 }
 
 static GstCaps *
 gst_qtkit_video_src_fixate (GstBaseSrc * basesrc, GstCaps * caps)
 {
-  GstCaps *ret;
-
-  OBJC_CALLOUT_BEGIN ();
-  ret = [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) fixate: caps];
-  OBJC_CALLOUT_END ();
-
-  return ret;
+  return [GST_QTKIT_VIDEO_SRC_IMPL (basesrc) fixate: caps];
 }
