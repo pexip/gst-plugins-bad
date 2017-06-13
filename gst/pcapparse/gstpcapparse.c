@@ -229,8 +229,9 @@ gst_pcap_parse_add_stats (GstPcapParse * self,
         "dst-ip", G_TYPE_STRING, dst_ip,
         "dst-port", G_TYPE_INT, dst_port,
         "packets", G_TYPE_INT, 0, "bytes", G_TYPE_INT, 0, NULL);
-    g_hash_table_insert (self->stats_map, key_str, s);
+    g_hash_table_insert (self->stats_map, g_strdup (key_str), s);
   }
+  g_free (key_str);
 
   gst_structure_get (s,
       "packets", G_TYPE_INT, &packets, "bytes", G_TYPE_INT, &bytes, NULL);
@@ -417,15 +418,19 @@ gst_pcap_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
                 self->cur_packet_size - offset - payload_size);
 
             if (GST_CLOCK_TIME_IS_VALID (self->cur_ts)) {
-              if (!GST_CLOCK_TIME_IS_VALID (self->base_ts))
+              if (!GST_CLOCK_TIME_IS_VALID (self->base_ts)) {
                 self->base_ts = self->cur_ts;
+                GST_DEBUG_OBJECT (self, "Setting base_ts to %"GST_TIME_FORMAT,
+                    GST_TIME_ARGS (self->base_ts));
+              }
+              self->cur_ts -= self->base_ts;
               if (self->offset >= 0) {
-                self->cur_ts -= self->base_ts;
                 self->cur_ts += self->offset;
               }
             }
             GST_BUFFER_TIMESTAMP (out_buf) = self->cur_ts;
-
+            GST_DEBUG_OBJECT (self, "Timestamping buffer with %"GST_TIME_FORMAT,
+                GST_TIME_ARGS (self->cur_ts));
 
             if (list == NULL)
               list = gst_buffer_list_new ();
@@ -516,7 +521,6 @@ gst_pcap_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
       if (self->caps)
         gst_pad_set_caps (self->src_pad, self->caps);
       gst_segment_init (&segment, GST_FORMAT_TIME);
-      segment.start = self->base_ts;
       gst_pad_push_event (self->src_pad, gst_event_new_segment (&segment));
       self->newsegment_sent = TRUE;
     }
