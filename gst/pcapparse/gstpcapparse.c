@@ -78,10 +78,10 @@ struct _GstPcapParse
   GstPad *src_pad;
 
   /* properties */
-  gint64 src_ip;
-  gint64 dst_ip;
-  gint32 src_port;
-  gint32 dst_port;
+  gchar * src_ip;
+  gchar * dst_ip;
+  gint src_port;
+  gint dst_port;
   GstCaps *caps;
   gint64 offset;
 
@@ -123,7 +123,7 @@ G_DEFINE_TYPE (GstPcapParse, gst_pcap_parse, GST_TYPE_ELEMENT);
 #define IP_PROTO_TCP      6
 
 static const gchar *
-get_ip_address_as_string (gint64 ip_addr)
+get_ip_address_as_string (guint32 ip_addr)
 {
   if (ip_addr >= 0) {
     struct in_addr addr;
@@ -134,17 +134,19 @@ get_ip_address_as_string (gint64 ip_addr)
   }
 }
 
+#if 0
 static void
-set_ip_address_from_string (gint64 * ip_addr, const gchar * ip_str)
+set_ip_address_from_string (guint32 * ip_addr, const gchar * ip_str)
 {
   if (ip_str[0] != '\0') {
-    gulong addr = inet_addr (ip_str);
+    guint32 addr = inet_addr (ip_str);
     if (addr != INADDR_NONE)
       *ip_addr = addr;
   } else {
     *ip_addr = -1;
   }
 }
+#endif
 
 static void
 gst_pcap_parse_reset (GstPcapParse * self)
@@ -189,11 +191,13 @@ gst_pcap_parse_get_stats (GstPcapParse * self)
   walk = streams = g_hash_table_get_values (self->stats_map);
   for (i = 0; i < len; i++) {
     GstStructure *s = walk->data;
-    GValue *value = g_value_array_get_nth (ret, i);
+    GValue *value;
+    ret->n_values++;
+    value = g_value_array_get_nth (ret, i);
     GST_INFO_OBJECT (self, "Adding stats %d: %" GST_PTR_FORMAT, i, s);
 
     g_value_init (value, GST_TYPE_STRUCTURE);
-    g_value_take_boxed (value, s);
+    gst_value_set_structure (value, s);
 
     walk = walk->next;
   }
@@ -205,14 +209,12 @@ gst_pcap_parse_get_stats (GstPcapParse * self)
 
 static void
 gst_pcap_parse_add_stats (GstPcapParse * self,
-    guint32 ip_src_addr, guint16 src_port,
-    guint32 ip_dst_addr, guint16 dst_port, gint payload_size)
+    const gchar * src_ip, guint16 src_port,
+    const gchar * dst_ip, guint16 dst_port, gint payload_size)
 {
   GstStructure *s;
   gint packets;
   gint bytes;
-  const gchar *src_ip = get_ip_address_as_string (ip_src_addr);
-  const gchar *dst_ip = get_ip_address_as_string (ip_dst_addr);
 
   gchar *key_str = g_strdup_printf ("%s:%d->%s:%d",
       src_ip, src_port, dst_ip, dst_port);
@@ -253,6 +255,8 @@ gst_pcap_parse_scan_frame (GstPcapParse * self,
   guint8 ip_protocol;
   guint32 ip_src_addr;
   guint32 ip_dst_addr;
+  const gchar *src_ip;
+  const gchar *dst_ip;
   guint16 src_port;
   guint16 dst_port;
   guint16 len;
@@ -330,21 +334,36 @@ gst_pcap_parse_scan_frame (GstPcapParse * self,
     *payload_size = self->cur_packet_size - (buf_proto - buf) - len;
   }
 
-  gst_pcap_parse_add_stats (self, ip_src_addr, src_port, ip_dst_addr, dst_port,
+  src_ip = get_ip_address_as_string (ip_src_addr);
+  dst_ip = get_ip_address_as_string (ip_dst_addr);
+
+  gst_pcap_parse_add_stats (self, src_ip, src_port, dst_ip, dst_port,
       *payload_size);
 
   /* but still filter as configured */
-  if (self->src_ip >= 0 && ip_src_addr != self->src_ip)
+  if (self->src_ip && !g_str_equal (src_ip, self->src_ip)) {
+    GST_LOG_OBJECT (self, "Filtering on src-ip (%s != %s)",
+        src_ip, self->src_ip);
     return FALSE;
+  }
 
-  if (self->dst_ip >= 0 && ip_dst_addr != self->dst_ip)
+  if (self->dst_ip && !g_str_equal (dst_ip, self->dst_ip)){
+    GST_LOG_OBJECT (self, "Filtering on dst-ip (%s != %s)",
+        dst_ip, self->dst_ip);
     return FALSE;
+  }
 
-  if (self->src_port >= 0 && src_port != self->src_port)
+  if (self->src_port >= 0 && src_port != self->src_port) {
+    GST_LOG_OBJECT (self, "Filtering on src-port (%d != %d)",
+        src_port, self->src_port);
     return FALSE;
+  }
 
-  if (self->dst_port >= 0 && dst_port != self->dst_port)
+  if (self->dst_port >= 0 && dst_port != self->dst_port) {
+    GST_LOG_OBJECT (self, "Filtering on dst-port (%d != %d)",
+        dst_port, self->dst_port);
     return FALSE;
+  }
 
   return TRUE;
 }
@@ -522,11 +541,11 @@ gst_pcap_parse_get_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_SRC_IP:
-      g_value_set_string (value, get_ip_address_as_string (self->src_ip));
+      g_value_set_string (value, self->src_ip);
       break;
 
     case PROP_DST_IP:
-      g_value_set_string (value, get_ip_address_as_string (self->dst_ip));
+      g_value_set_string (value, self->dst_ip);
       break;
 
     case PROP_SRC_PORT:
@@ -563,11 +582,13 @@ gst_pcap_parse_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_SRC_IP:
-      set_ip_address_from_string (&self->src_ip, g_value_get_string (value));
+      g_free (self->src_ip);
+      self->src_ip = g_strdup (g_value_get_string (value));
       break;
 
     case PROP_DST_IP:
-      set_ip_address_from_string (&self->dst_ip, g_value_get_string (value));
+      g_free (self->dst_ip);
+      self->dst_ip = g_strdup (g_value_get_string (value));
       break;
 
     case PROP_SRC_PORT:
@@ -662,6 +683,9 @@ gst_pcap_parse_finalize (GObject * object)
   g_value_array_free (gst_pcap_parse_get_stats (self));
   g_hash_table_destroy (self->stats_map);
 
+  g_free (self->src_ip);
+  g_free (self->dst_ip);
+
   if (self->caps)
     gst_caps_unref (self->caps);
 
@@ -741,8 +765,6 @@ gst_pcap_parse_init (GstPcapParse * self)
   gst_pad_use_fixed_caps (self->src_pad);
   gst_element_add_pad (GST_ELEMENT (self), self->src_pad);
 
-  self->src_ip = -1;
-  self->dst_ip = -1;
   self->src_port = -1;
   self->dst_port = -1;
   self->offset = -1;
