@@ -122,31 +122,13 @@ G_DEFINE_TYPE (GstPcapParse, gst_pcap_parse, GST_TYPE_ELEMENT);
 #define IP_PROTO_UDP      17
 #define IP_PROTO_TCP      6
 
-static const gchar *
+static gchar *
 get_ip_address_as_string (guint32 ip_addr)
 {
-  if (ip_addr >= 0) {
-    struct in_addr addr;
-    addr.s_addr = ip_addr;
-    return inet_ntoa (addr);
-  } else {
-    return "";
-  }
+  struct in_addr addr;
+  addr.s_addr = ip_addr;
+  return g_strdup (inet_ntoa (addr));
 }
-
-#if 0
-static void
-set_ip_address_from_string (guint32 * ip_addr, const gchar * ip_str)
-{
-  if (ip_str[0] != '\0') {
-    guint32 addr = inet_addr (ip_str);
-    if (addr != INADDR_NONE)
-      *ip_addr = addr;
-  } else {
-    *ip_addr = -1;
-  }
-}
-#endif
 
 static void
 gst_pcap_parse_reset (GstPcapParse * self)
@@ -248,6 +230,7 @@ gst_pcap_parse_scan_frame (GstPcapParse * self,
     const guint8 * buf,
     gint buf_size, const guint8 ** payload, gint * payload_size)
 {
+  gboolean ret = FALSE;
   const guint8 *buf_ip = 0;
   const guint8 *buf_proto;
   guint16 eth_type;
@@ -256,8 +239,8 @@ gst_pcap_parse_scan_frame (GstPcapParse * self,
   guint8 ip_protocol;
   guint32 ip_src_addr;
   guint32 ip_dst_addr;
-  const gchar *src_ip;
-  const gchar *dst_ip;
+  gchar *src_ip = NULL;
+  gchar *dst_ip = NULL;
   guint16 src_port;
   guint16 dst_port;
   guint16 len;
@@ -265,46 +248,46 @@ gst_pcap_parse_scan_frame (GstPcapParse * self,
   switch (self->linktype) {
     case LINKTYPE_ETHER:
       if (buf_size < ETH_HEADER_LEN + IP_HEADER_MIN_LEN + UDP_HEADER_LEN)
-        return FALSE;
+        goto done;
 
       eth_type = GUINT16_FROM_BE (*((guint16 *) (buf + 12)));
       buf_ip = buf + ETH_HEADER_LEN;
       break;
     case LINKTYPE_SLL:
       if (buf_size < SLL_HEADER_LEN + IP_HEADER_MIN_LEN + UDP_HEADER_LEN)
-        return FALSE;
+        goto done;
 
       eth_type = GUINT16_FROM_BE (*((guint16 *) (buf + 14)));
       buf_ip = buf + SLL_HEADER_LEN;
       break;
     case LINKTYPE_RAW:
       if (buf_size < IP_HEADER_MIN_LEN + UDP_HEADER_LEN)
-        return FALSE;
+        goto done;
 
       eth_type = 0x800;         /* This is fine since IPv4/IPv6 is parse elsewhere */
       buf_ip = buf;
       break;
 
     default:
-      return FALSE;
+      goto done;
   }
 
   if (eth_type != 0x800)
-    return FALSE;
+    goto done;
 
   b = *buf_ip;
   if (((b >> 4) & 0x0f) != 4)
-    return FALSE;
+    goto done;
 
   ip_header_size = (b & 0x0f) * 4;
   if (buf_ip + ip_header_size > buf + buf_size)
-    return FALSE;
+    goto done;
 
   ip_protocol = *(buf_ip + 9);
   GST_LOG_OBJECT (self, "ip proto %d", (gint) ip_protocol);
 
   if (ip_protocol != IP_PROTO_UDP && ip_protocol != IP_PROTO_TCP)
-    return FALSE;
+    goto done;
 
   /* ip info */
   ip_src_addr = *((guint32 *) (buf_ip + 12));
@@ -319,16 +302,16 @@ gst_pcap_parse_scan_frame (GstPcapParse * self,
   if (ip_protocol == IP_PROTO_UDP) {
     len = GUINT16_FROM_BE (*((guint16 *) (buf_proto + 4)));
     if (len < UDP_HEADER_LEN || buf_proto + len > buf + buf_size)
-      return FALSE;
+      goto done;
 
     *payload = buf_proto + UDP_HEADER_LEN;
     *payload_size = len - UDP_HEADER_LEN;
   } else {
     if (buf_proto + 12 >= buf + buf_size)
-      return FALSE;
+      goto done;
     len = (buf_proto[12] >> 4) * 4;
     if (buf_proto + len > buf + buf_size)
-      return FALSE;
+      goto done;
 
     /* all remaining data following tcp header is payload */
     *payload = buf_proto + len;
