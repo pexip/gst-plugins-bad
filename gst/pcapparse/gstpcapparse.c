@@ -66,7 +66,8 @@ enum
   PROP_DST_PORT,
   PROP_CAPS,
   PROP_TS_OFFSET,
-  PROP_STATS
+  PROP_STATS,
+  PROP_START_TIME,
 };
 
 struct _GstPcapParse
@@ -84,6 +85,7 @@ struct _GstPcapParse
   gint dst_port;
   GstCaps *caps;
   gint64 offset;
+  GstClockTime start_ts;
 
   /* state */
   GstAdapter *adapter;
@@ -92,7 +94,6 @@ struct _GstPcapParse
   gboolean swap_endian;
   gint64 cur_packet_size;
   GstClockTime cur_ts;
-  GstClockTime base_ts;
   GstPcapParseLinktype linktype;
 
   gboolean newsegment_sent;
@@ -137,7 +138,7 @@ gst_pcap_parse_reset (GstPcapParse * self)
   self->swap_endian = FALSE;
   self->cur_packet_size = -1;
   self->cur_ts = GST_CLOCK_TIME_NONE;
-  self->base_ts = GST_CLOCK_TIME_NONE;
+  self->start_ts = GST_CLOCK_TIME_NONE;
   self->newsegment_sent = FALSE;
 
   gst_adapter_clear (self->adapter);
@@ -236,6 +237,7 @@ _check_rtp_rtcp (const guint8 * payload, gint payload_size,
   /* for payload_type range 66-95 we assume RTCP, not RTP */
   if (rtp->payload_type >= 66 && rtp->payload_type <= 95) {
     *is_rtcp = TRUE;
+    *ssrc = rtp->timestamp; /* Hackish, but true */
   } else {
     *payload_type = rtp->payload_type;
     *ssrc = rtp->ssrc;
@@ -255,6 +257,11 @@ _add_rtp_stats (GstStructure * s, const guint8 * payload, gint payload_size)
 
   if (is_rtcp) {
     gst_structure_set (s, "has-rtcp", G_TYPE_BOOLEAN, TRUE, NULL);
+
+    gst_structure_set (s,
+      "ssrc", G_TYPE_UINT, ssrc,
+      NULL);
+
   } else if (is_rtp) {
     gst_structure_set (s, "has-rtp", G_TYPE_BOOLEAN, TRUE, NULL);
 
@@ -282,7 +289,7 @@ gst_pcap_parse_add_stats (GstPcapParse * self,
   s = g_hash_table_lookup (self->stats_map, key_str);
   if (s == NULL) {
     s = gst_structure_new ("stats",
-        //"stream-id", G_TYPE_UINT, g_hash_table_size (self->stats_map),
+        "first-ts", G_TYPE_UINT64, self->cur_ts,
         "id-str", G_TYPE_STRING, key_str,
         "src-ip", G_TYPE_STRING, src_ip,
         "src-port", G_TYPE_INT, src_port,
@@ -487,10 +494,10 @@ gst_pcap_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
                 self->cur_packet_size - offset - payload_size);
 
             if (GST_CLOCK_TIME_IS_VALID (self->cur_ts)) {
-              if (!GST_CLOCK_TIME_IS_VALID (self->base_ts)) {
-                self->base_ts = self->cur_ts;
-                GST_DEBUG_OBJECT (self, "Setting base_ts to %"GST_TIME_FORMAT,
-                    GST_TIME_ARGS (self->base_ts));
+              if (!GST_CLOCK_TIME_IS_VALID (self->start_ts)) {
+                self->start_ts = self->cur_ts;
+                GST_DEBUG_OBJECT (self, "Setting start_ts to %"GST_TIME_FORMAT,
+                    GST_TIME_ARGS (self->start_ts));
               }
               if (self->offset >= 0) {
                 self->cur_ts += self->offset;
@@ -582,13 +589,13 @@ gst_pcap_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
   }
 
   if (list) {
-    if (!self->newsegment_sent && GST_CLOCK_TIME_IS_VALID (self->base_ts)) {
+    if (!self->newsegment_sent && GST_CLOCK_TIME_IS_VALID (self->start_ts)) {
       GstSegment segment;
 
       if (self->caps)
         gst_pad_set_caps (self->src_pad, self->caps);
       gst_segment_init (&segment, GST_FORMAT_TIME);
-      gst_segment_set_running_time (&segment, GST_FORMAT_TIME, self->base_ts);
+      gst_segment_set_running_time (&segment, GST_FORMAT_TIME, self->start_ts);
       gst_pad_push_event (self->src_pad, gst_event_new_segment (&segment));
       self->newsegment_sent = TRUE;
     }
@@ -634,6 +641,10 @@ gst_pcap_parse_get_property (GObject * object, guint prop_id,
 
     case PROP_TS_OFFSET:
       g_value_set_int64 (value, self->offset);
+      break;
+
+    case PROP_START_TIME:
+      g_value_set_int64 (value, self->start_ts);
       break;
 
     case PROP_STATS:
@@ -694,6 +705,10 @@ gst_pcap_parse_set_property (GObject * object, guint prop_id,
 
     case PROP_TS_OFFSET:
       self->offset = g_value_get_int64 (value);
+      break;
+
+    case PROP_START_TIME:
+      self->start_ts = g_value_get_int64 (value);
       break;
 
     default:
@@ -802,6 +817,11 @@ gst_pcap_parse_class_init (GstPcapParseClass * klass)
   g_object_class_install_property (gobject_class, PROP_TS_OFFSET,
       g_param_spec_int64 ("ts-offset", "Timestamp Offset",
           "Relative timestamp offset (ns) to apply (-1 = use absolute packet time)",
+          -1, G_MAXINT64, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_START_TIME,
+      g_param_spec_int64 ("start-time", "Start Time",
+          "The start-time (ns) in the segment (-1 = use first timestamp)",
           -1, G_MAXINT64, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_STATS,
