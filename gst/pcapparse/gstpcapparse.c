@@ -492,7 +492,6 @@ gst_pcap_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
                 GST_DEBUG_OBJECT (self, "Setting base_ts to %"GST_TIME_FORMAT,
                     GST_TIME_ARGS (self->base_ts));
               }
-              self->cur_ts -= self->base_ts;
               if (self->offset >= 0) {
                 self->cur_ts += self->offset;
               }
@@ -583,12 +582,13 @@ gst_pcap_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
   }
 
   if (list) {
-    if (!self->newsegment_sent && GST_CLOCK_TIME_IS_VALID (self->cur_ts)) {
+    if (!self->newsegment_sent && GST_CLOCK_TIME_IS_VALID (self->base_ts)) {
       GstSegment segment;
 
       if (self->caps)
         gst_pad_set_caps (self->src_pad, self->caps);
       gst_segment_init (&segment, GST_FORMAT_TIME);
+      gst_segment_set_running_time (&segment, GST_FORMAT_TIME, self->base_ts);
       gst_pad_push_event (self->src_pad, gst_event_new_segment (&segment));
       self->newsegment_sent = TRUE;
     }
