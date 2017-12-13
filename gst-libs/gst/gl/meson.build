@@ -202,8 +202,8 @@ else
       need_platform_egl = 'yes'
     elif platform == 'glx'
       need_platform_glx = 'yes'
-#    elif platform == 'cgl'
-#      need_platform_cgl = 'yes'
+    elif platform == 'cgl'
+      need_platform_cgl = 'yes'
     elif platform == 'wgl'
       need_platform_wgl = 'yes'
 #    elif platform == 'eagl'
@@ -239,8 +239,8 @@ else
       need_win_wayland = 'yes'
     elif winsys == 'win32'
       need_win_win32 = 'yes'
-#    elif winsys == 'cocoa'
-#      need_win_cocoa = 'yes'
+    elif winsys == 'cocoa'
+      need_win_cocoa = 'yes'
 #    elif winsys == 'eagl'
 #      need_win_eagl = 'yes'
     elif winsys == 'dispmanx'
@@ -271,8 +271,8 @@ if need_api_opengl != 'no' or need_platform_glx != 'no'
   if not gl_dep.found()
     if host_machine.system() == 'windows'
       gl_dep = cc.find_library('opengl32', required : false)
-#    elif host_machine.system() == 'darwin'
-#      gl_dep = cc.find_library('OpenGL', required : false)
+    elif host_machine.system() == 'darwin'
+      gl_dep = cc.find_library('OpenGL', required : false)
     else
       gl_dep = cc.find_library('GL', required : false)
     endif
@@ -366,9 +366,11 @@ endif
 # can we include both gles2 and opengl headers?
 if gles2_dep.found() and gl_dep.found()
   gl_include_block = gl_include_header + gles_includes + opengl_includes
-  if not cc.compiles('void f (void) {}', prefix : gl_include_block, dependencies : [gles2_dep, gl_dep] )
+
+  if not cc.compiles(gl_include_block + '''
+void f (void) {}''', dependencies : [gles2_dep, gl_dep] )
     message ('Cannot include both OpenGL and OpenGL ES headers')
-    if need_gles2 != 'yes'
+    if need_api_gles2 != 'yes'
       gles2_dep = unneeded_dep
     elif need_opengl != 'yes'
       gl_dep = unneeded_dep
@@ -584,12 +586,47 @@ if need_platform_wgl != 'no' and need_win_win32 != 'no'
   endif
 endif
 
-if host_machine.system() == 'darwin'
-  # FIXME: how to know if we're on iOS or OS X?
-#  gl_cocoa_headers += [
-#    'gstglcontext_cocoa.h',
-#    'gstglcaopengllayer.h',
-#  ]
+# OSX check
+if need_platform_cgl == 'yes'
+  if need_win_cocoa == 'no'
+    error('Impossible situation requested: Cannot use CGL without Cocoa support')
+  elif need_api_opengl == 'no'
+    error('Impossible situation requested: Cannot use CGL without the OpenGL library')
+  endif
+elif need_platform_cgl == 'no' and need_win_cocoa == 'yes'
+  error('Impossible situation requested: Cannot use Cocoa without CGL support')
+endif
+
+if need_platform_cgl != 'no'
+  quartzcore_dep = dependency('QuartzCore', required : false)
+  corefoundation_dep = dependency('CoreFoundation', required : false)
+
+  if quartzcore_dep.found() and corefoundation_dep.found()
+    gl_platform_deps += [quartzcore_dep, corefoundation_dep]
+    enabled_gl_platforms += 'cgl'
+    glconf.set10('GST_GL_HAVE_PLATFORM_CGL', 1)
+    gl_lib_deps += gl_platform_deps
+
+    if need_win_cocoa != 'no'
+      cocoa_dep = dependency('Cocoa', required : false)
+      opengl_dep = dependency('OpenGL', required : false)
+      if cocoa_dep.found() and opengl_dep.found()
+        gl_sources += [
+          'cocoa/gstglcaopengllayer.m',
+          'cocoa/gstglcontext_cocoa.m',
+          'cocoa/gstgldisplay_cocoa.m',
+          'cocoa/gstglwindow_cocoa.m'
+        ]
+        gl_winsys_deps += [cocoa_dep, opengl_dep]
+        enabled_gl_winsys += 'cocoa'
+        glconf.set10('GST_GL_HAVE_WINDOW_COCOA', 1)
+      elif need_win_cocoa == 'yes'
+        error('Could not find Cocoa')
+      endif
+    endif
+  elif need_platform_cgl == 'yes'
+    error('Could not find CGL dependencies')
+  endif
 endif
 
 if need_platform_egl != 'no' and need_win_viv_fb != 'no'
@@ -608,7 +645,7 @@ if need_platform_egl != 'no' and need_win_viv_fb != 'no'
 endif
 
 # TODO: Add rest of gl config here.
-# iOS, OS X, win32 specific support
+# iOS, win32 specific support
 
 build_gstgl = true
 if enabled_gl_apis.length() == 0
