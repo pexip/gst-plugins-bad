@@ -1,4 +1,4 @@
-project('gst-plugins-bad', 'c', 'cpp', 'objc',
+project('gst-plugins-bad', 'c', 'cpp',
   version : '1.13.0.1',
   meson_version : '>= 0.40.1',
   default_options : [ 'warning_level=1',
@@ -356,6 +356,10 @@ if host_machine.system() == 'windows'
   winsock2 = [cc.find_library('ws2_32')]
 else
   winsock2 = []
+endif
+
+if host_machine.system() == 'darwin'
+  add_languages('objc')
 endif
 
 have_orcc = false
