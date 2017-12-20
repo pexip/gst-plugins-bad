@@ -31,6 +31,7 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
+#include <gst/rtp/gstrtpbuffer.h>
 
 GST_DEBUG_CATEGORY (netsim_debug);
 #define GST_CAT_DEFAULT (netsim_debug)
@@ -73,6 +74,7 @@ enum
   PROP_MAX_KBPS,
   PROP_MAX_BUCKET_SIZE,
   PROP_ALLOW_REORDERING,
+  PROP_REPLACE_DROPPED_WITH_EMPTY,
 };
 
 typedef struct
@@ -107,6 +109,7 @@ struct _GstNetSimPrivate
   gint max_kbps;
   gint max_bucket_size;
   gboolean allow_reordering;
+  gboolean replace_droppped_with_empty;
 };
 
 /* these numbers are nothing but wild guesses and dont reflect any reality */
@@ -120,6 +123,7 @@ struct _GstNetSimPrivate
 #define DEFAULT_MAX_KBPS -1
 #define DEFAULT_MAX_BUCKET_SIZE -1
 #define DEFAULT_ALLOW_REORDERING TRUE
+#define DEFAULT_REPLACE_DROPPED_WITH_EMPTY FALSE
 
 #define GST_NET_SIM_GET_PRIVATE(o) \
   (G_TYPE_INSTANCE_GET_PRIVATE ((o), GST_TYPE_NET_SIM, GstNetSimPrivate))
@@ -533,17 +537,22 @@ gst_net_sim_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstNetSim *netsim = GST_NET_SIM (parent);
   GstNetSimPrivate *priv = netsim->priv;
   GstFlowReturn ret = GST_FLOW_OK;
+  gboolean dropped = FALSE;
   (void) pad;
 
-  if (!gst_net_sim_token_bucket (netsim, buf))
+  if (!gst_net_sim_token_bucket (netsim, buf)) {
+    dropped = TRUE;
     goto done;
+  }
 
   if (priv->drop_packets > 0) {
     priv->drop_packets--;
     GST_DEBUG_OBJECT (netsim, "Dropping packet (%d left)", priv->drop_packets);
+    dropped = TRUE;
   } else if (priv->drop_probability > 0
       && g_rand_double (priv->rand_seed) < (gdouble) priv->drop_probability) {
     GST_DEBUG_OBJECT (netsim, "Dropping packet");
+    dropped = TRUE;
   } else if (priv->duplicate_probability > 0 &&
       g_rand_double (priv->rand_seed) < (gdouble) priv->duplicate_probability) {
     GST_DEBUG_OBJECT (netsim, "Duplicating packet");
@@ -554,6 +563,18 @@ gst_net_sim_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   }
 
 done:
+  if (dropped && priv->replace_droppped_with_empty) {
+    GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
+
+    if (gst_rtp_buffer_map (buf, GST_MAP_READ, &rtp)) {
+      guint header_len = gst_rtp_buffer_get_header_len (&rtp);
+      gst_rtp_buffer_unmap (&rtp);
+
+      buf = gst_buffer_make_writable (buf);
+      gst_buffer_resize (buf, 0, header_len);
+      ret = gst_net_sim_delay_buffer (netsim, buf);
+    }
+  }
   gst_buffer_unref (buf);
   return ret;
 }
@@ -599,6 +620,9 @@ gst_net_sim_set_property (GObject * object,
     case PROP_ALLOW_REORDERING:
       priv->allow_reordering = g_value_get_boolean (value);
       break;
+    case PROP_REPLACE_DROPPED_WITH_EMPTY:
+      priv->replace_droppped_with_empty = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -642,6 +666,9 @@ gst_net_sim_get_property (GObject * object,
       break;
     case PROP_ALLOW_REORDERING:
       g_value_set_boolean (value, priv->allow_reordering);
+      break;
+    case PROP_REPLACE_DROPPED_WITH_EMPTY:
+      g_value_set_boolean (value, priv->replace_droppped_with_empty);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -768,6 +795,14 @@ gst_net_sim_class_init (GstNetSimClass * klass)
       g_param_spec_uint ("drop-packets", "Drop Packets",
           "Drop the next n packets",
           0, G_MAXUINT, DEFAULT_DROP_PACKETS,
+          G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_REPLACE_DROPPED_WITH_EMPTY,
+      g_param_spec_boolean (
+          "replace-dropped-with-empty-packets",
+          "replace-dropped-with-empty-packets",
+          "Insert packets with no payload instead of dropping",
+          DEFAULT_REPLACE_DROPPED_WITH_EMPTY,
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MAX_KBPS,
