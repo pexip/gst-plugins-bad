@@ -175,15 +175,13 @@ gst_gl_window_cocoa_create_window (GstGLWindowCocoa *window_cocoa)
   NSRect rect = NSMakeRect (0, y, priv->preferred_width, priv->preferred_height);
   NSRect windowRect = NSMakeRect (0, y, priv->preferred_width, priv->preferred_height);
   GstGLContext *context = gst_gl_window_get_context (window);
-  GstGLContextCocoa *context_cocoa;
   GstGLCAOpenGLLayer *layer;
   GstGLNSView *glView;
 
   if (!context)
     return FALSE;
 
-  context_cocoa = GST_GL_CONTEXT_COCOA (context);
-  layer = [[GstGLCAOpenGLLayer alloc] initWithGstGLContext:context_cocoa];
+  layer = [[GstGLCAOpenGLLayer alloc] initWithGstGLContext:context];
   glView = [[GstGLNSView alloc] initWithFrameLayer:window_cocoa rect:windowRect layer:layer];
 
   gst_object_unref (context);
