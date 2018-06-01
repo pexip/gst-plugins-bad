@@ -30,7 +30,8 @@ gstopencv_sources = [
   'camerautils.cpp',
   'cameraevent.cpp',
   'gstcameracalibrate.cpp',
-  'gstcameraundistort.cpp'
+  'gstcameraundistort.cpp',
+  'gsthomography.cpp',
 ]
 
 libopencv_headers = [
