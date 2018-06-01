@@ -32,6 +32,7 @@
 #include "gstedgedetect.h"
 #include "gstfaceblur.h"
 #include "gstfacedetect.h"
+#include "gsthomography.h"
 #include "gstmotioncells.h"
 #include "gsttemplatematch.h"
 #include "gsttextoverlay.h"
@@ -73,6 +74,9 @@ plugin_init (GstPlugin * plugin)
     return FALSE;
 
   if (!gst_face_detect_plugin_init (plugin))
+    return FALSE;
+
+  if (!gst_homography_plugin_init (plugin))
     return FALSE;
 
   if (!gst_motion_cells_plugin_init (plugin))
