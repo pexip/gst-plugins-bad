@@ -66,7 +66,7 @@ opencv_found = opencv_dep.found()
 
 if opencv_found
   foreach h : libopencv_headers
-    if not cxx.has_header(h)
+    if not cxx.has_header(h, dependencies: opencv_dep)
       message('Needed header "' + h + '" not found')
       opencv_found = false
     endif
