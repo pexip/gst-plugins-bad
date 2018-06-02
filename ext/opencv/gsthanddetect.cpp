@@ -64,6 +64,11 @@
 #include "gsthanddetect.h"
 #include <opencv2/imgproc/imgproc_c.h>
 
+#ifndef CV_RGB
+/* Version >3.4.1 moved CV_RGB to imgproc.hpp */
+#define CV_RGB( r, g, b )  cvScalar( (b), (g), (r), 0 )
+#endif
+
 GST_DEBUG_CATEGORY_STATIC (gst_handdetect_debug);
 #define GST_CAT_DEFAULT gst_handdetect_debug
 

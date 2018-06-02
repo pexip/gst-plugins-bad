@@ -1868,7 +1868,8 @@ AG_GST_CHECK_FEATURE(OPENCV, [opencv plugins], opencv, [
     dnl Only required for OpenCV >= 3, we have compat code for older versions
     PKG_CHECK_MODULES(OPENCV_3, opencv >= 3, [
       dnl check opencv_contrib headers (not always present in opencv distributions)
-      AC_CHECK_HEADERS([opencv2/bgsegm.hpp], [], [something_not_found=yes])],
+      AC_CHECK_HEADERS([opencv2/bgsegm.hpp \
+                        opencv2/imgcodecs/imgcodecs_c.h], [], [something_not_found=yes])],
       [NOT_A_PROBLEM=yes])
 
     CPPFLAGS=$OLD_CPPFLAGS

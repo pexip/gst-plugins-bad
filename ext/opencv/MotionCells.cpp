@@ -53,6 +53,11 @@
 #include "MotionCells.h"
 #include <opencv2/imgproc/imgproc_c.h>
 
+#ifndef CV_RGB
+/* Version >3.4.1 moved CV_RGB to imgproc.hpp */
+#define CV_RGB( r, g, b )  cvScalar( (b), (g), (r), 0 )
+#endif
+
 MotionCells::MotionCells ()
 {
   m_framecnt = 0;

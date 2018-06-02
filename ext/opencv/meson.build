@@ -37,6 +37,7 @@ libopencv2_headers = [
 
 libopencv3_headers = [
   'opencv2/bgsegm.hpp',
+  'opencv2/imgcodecs/imgcodecs_c.h'
 ]
 
 gstopencv_cargs = ['-DGST_HAAR_CASCADES_DIR="@0@"']

@@ -64,6 +64,14 @@
 #include "../../gst-libs/gst/gst-i18n-plugin.h"
 #include "gsttemplatematch.h"
 #include <opencv2/imgproc/imgproc_c.h>
+#if (CV_MAJOR_VERSION >= 3)
+#include <opencv2/imgcodecs/imgcodecs_c.h>
+#endif
+
+#ifndef CV_RGB
+/* Version >3.4.1 moved CV_RGB to imgproc.hpp */
+#define CV_RGB( r, g, b )  cvScalar( (b), (g), (r), 0 )
+#endif
 
 GST_DEBUG_CATEGORY_STATIC (gst_template_match_debug);
 #define GST_CAT_DEFAULT gst_template_match_debug
