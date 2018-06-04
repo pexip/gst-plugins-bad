@@ -254,7 +254,7 @@ gst_homography_class_init (GstHomographyClass * klass)
       "homography",
       "Filter/Effect/Video",
       "Performs homography.",
-      "Michael Sheldon <mike@mikeasoft.com>");
+      "Havard Graff <havard@pexip.com>");
 
   gst_element_class_add_static_pad_template (element_class, &src_factory);
   gst_element_class_add_static_pad_template (element_class, &sink_factory);
@@ -268,6 +268,7 @@ gst_homography_class_init (GstHomographyClass * klass)
 static void
 gst_homography_init (GstHomography * filter)
 {
+/*
   filter->src_points[0].x = 740;
   filter->src_points[0].y = 187;
 
@@ -279,6 +280,19 @@ gst_homography_init (GstHomography * filter)
 
   filter->src_points[3].x = 771;
   filter->src_points[3].y = 616;
+*/
+  filter->src_points[0].x = 132;
+  filter->src_points[0].y = 57;
+
+  filter->src_points[1].x = 336;
+  filter->src_points[1].y = 90;
+
+  filter->src_points[2].x = 497;
+  filter->src_points[2].y = 478;
+
+  filter->src_points[3].x = 413;
+  filter->src_points[3].y = 659;
+
 
   gst_opencv_video_filter_set_in_place (GST_OPENCV_VIDEO_FILTER_CAST (filter),
       FALSE);
