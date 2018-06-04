@@ -194,6 +194,10 @@ gst_homography_fixate_caps (GstBaseTransform * trans,
   gint max_width = (gint)round (MAX (top, bottom));
   gint max_height = (gint)round (MAX (right, left));
 
+  gint min_width = max_height * 9 / 16;
+  if (min_width > max_width)
+    max_width = min_width;
+
   gst_structure_set (out_s,
       "width", G_TYPE_INT, max_width,
       "height", G_TYPE_INT, max_height,
