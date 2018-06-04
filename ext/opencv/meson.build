@@ -64,6 +64,11 @@ gstopencv_cargs = ['-DGST_HAAR_CASCADES_DIR="@0@"']
 opencv_dep = dependency('opencv', version : ['>= 3.0.0', '< 3.5.0'], required : false)
 opencv_found = opencv_dep.found()
 
+if opencv_dep.version() >= '3.3.0'
+  gstopencv_sources += ['gstdnnobjectdetect.cpp']
+  libopencv_headers += ['opencv2/dnn.hpp']
+endif
+
 if opencv_found
   foreach h : libopencv_headers
     if not cxx.has_header(h, dependencies: opencv_dep)
