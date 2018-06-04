@@ -1,3 +1,5 @@
+opencv_dep = dependency('opencv', version : '>= 2.3.0', required : false)
+
 opencv_sources = [
   'gstopencvutils.cpp',
   'gstopencvvideofilter.cpp',
@@ -10,6 +12,12 @@ opencv_headers = [
 ]
 
 opencv_dep = dependency('opencv', version : '>= 3.0.0', required : get_option('opencv'))
+
+if opencv_dep.version() >= '3.3.0'
+  opencv_sources += ['gstopencvdnnvideofilter.cpp']
+  opencv_headers += ['gstopencvdnnvideofilter.h']
+endif
+
 if opencv_dep.found()
   gstopencv = library('gstopencv-' + api_version,
     opencv_sources,

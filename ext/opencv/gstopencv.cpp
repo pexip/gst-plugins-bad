@@ -46,6 +46,7 @@
 #include "gstcameracalibrate.h"
 #include "gstcameraundistort.h"
 #include "gsthomography.h"
+#include "gstdnnobjectdetect.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
@@ -116,6 +117,9 @@ plugin_init (GstPlugin * plugin)
   if (!gst_camera_undistort_plugin_init (plugin))
 
   if (!gst_homography_plugin_init (plugin))
+    return FALSE;
+
+  if (!gst_dnn_object_detect_plugin_init (plugin))
     return FALSE;
 
   return TRUE;
