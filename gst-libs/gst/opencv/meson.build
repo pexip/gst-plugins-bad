@@ -1,3 +1,5 @@
+opencv_dep = dependency('opencv', version : '>= 2.3.0', required : false)
+
 opencv_sources = [
   'gstopencvutils.cpp',
   'gstopencvvideofilter.cpp',
@@ -8,9 +10,14 @@ opencv_headers = [
   'gstopencvutils.h',
   'gstopencvvideofilter.h',
 ]
+
+if opencv_dep.version() >= '3.3.0'
+  opencv_sources += ['gstopencvdnnvideofilter.cpp']
+  opencv_headers += ['gstopencvdnnvideofilter.h']
+endif
+
 install_headers(opencv_headers, subdir : 'gstreamer-1.0/gst/opencv')
 
-opencv_dep = dependency('opencv', version : '>= 2.3.0', required : false)
 if opencv_dep.found()
   gstopencv = library('gstopencv-' + api_version,
     opencv_sources,

@@ -40,6 +40,11 @@ libopencv3_headers = [
   'opencv2/imgcodecs/imgcodecs_c.h'
 ]
 
+if opencv_dep.version() >= '3.3.0'
+  gstopencv_sources += ['gstdnnobjectdetect.cpp']
+  libopencv3_headers += ['opencv2/dnn.hpp']
+endif
+
 gstopencv_cargs = ['-DGST_HAAR_CASCADES_DIR="@0@"']
 
 opencv_dep = dependency('opencv', version : ['>= 2.3.0', '< 3.5.0'], required : false)
