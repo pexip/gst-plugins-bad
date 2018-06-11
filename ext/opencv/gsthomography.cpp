@@ -191,10 +191,10 @@ gst_homography_fixate_caps (GstBaseTransform * trans,
 
   //float aspect_ratio = (top + bottom) / 2.0f + (right + left) / 2.0f;
 
-  gint max_width = (gint)round (MAX (top, bottom));
-  gint max_height = (gint)round (MAX (right, left));
+  gint max_width = GST_ROUND_UP_16 ((gint)round (MAX (top, bottom)));
+  gint max_height = GST_ROUND_UP_2 ((gint)round (MAX (right, left)));
 
-  gint min_width = max_height * 9 / 16;
+  gint min_width = GST_ROUND_UP_16 (max_height * 9 / 16);
   if (min_width > max_width)
     max_width = min_width;
 
