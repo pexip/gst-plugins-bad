@@ -43,6 +43,7 @@
 #include "gstdisparity.h"
 #include "gstdewarp.h"
 #include "gsthomography.h"
+#include "gstcvdnnstyletransfer.h"
 #include "gstdnnobjectdetect.h"
 
 static gboolean
@@ -106,6 +107,9 @@ plugin_init (GstPlugin * plugin)
     return FALSE;
 
   if (!gst_homography_plugin_init (plugin))
+    return FALSE;
+
+  if (!gst_cv_dnn_style_transfer_plugin_init (plugin))
     return FALSE;
 
   if (!gst_dnn_object_detect_plugin_init (plugin))

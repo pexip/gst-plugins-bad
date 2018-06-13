@@ -69,21 +69,12 @@ G_BEGIN_DECLS
 typedef struct _GstOpencvDnnVideoFilter GstOpencvDnnVideoFilter;
 typedef struct _GstOpencvDnnVideoFilterClass GstOpencvDnnVideoFilterClass;
 
-/* typedef GstFlowReturn (*GstOpencvDnnVideoFilterTransformIPFunc)
-    (GstOpencvDnnVideoFilter * transform, GstBuffer * buffer, IplImage * img,
-    std::vector<cv::Mat> * output_blobs);
-
-typedef GstFlowReturn (*GstOpencvDnnVideoFilterTransformFunc)
-    (GstOpencvDnnVideoFilter * transform, GstBuffer * buffer, IplImage * img,
-    GstBuffer * outbuf, IplImage * outimg, std::vector<cv::Mat> * output_blobs);
- */
 typedef void (*GstOpencvDnnVideoFilterPostProcessFunc)
-    (GstOpencvDnnVideoFilter * dnn, cv::Mat & frame,
-    std::vector<cv::Mat> & output_blobs);
+    (GstOpencvDnnVideoFilter * dnn,  std::vector<cv::Mat> & output_blobs,
+    cv::Mat & inframe, cv::Mat & outframe);
 
 typedef void (*GstOpencvDnnVideoFilterPostProcessIPFunc)
-    (GstOpencvDnnVideoFilter * dnn, cv::Mat & frame,
-    std::vector<cv::Mat> & output_blobs);
+    (GstOpencvDnnVideoFilter * dnn, std::vector<cv::Mat> & output_blobs, cv::Mat & frame);
 
 #define GST_TYPE_OPENCV_DNN_CHANNEL_ORDER (gst_opencv_dnn_channel_order_get_type ())
 
@@ -131,6 +122,9 @@ GType gst_opencv_dnn_video_filter_get_type (void);
 
 GST_OPENCV_API
 GType gst_opencv_dnn_channel_order_get_type (void);
+
+GST_OPENCV_API
+cv::Scalar gst_opencv_dnn_video_filter_get_mean_values (GstOpencvDnnVideoFilter * dnn);
 
 G_END_DECLS
 
