@@ -193,7 +193,7 @@ draw_bounding_box (GstDnnObjectDetect * detect, int class_id, float conf, int le
 
 static void
 gst_dnn_object_detect_post_process (GstOpencvDnnVideoFilter * dnnfilter,
-    Mat & frame, vector<Mat> & outs)
+    vector<Mat> & outs, Mat & frame)
 {
   GstDnnObjectDetect *detect = GST_DNN_OBJECT_DETECT (dnnfilter);
   Net& net = dnnfilter->net;

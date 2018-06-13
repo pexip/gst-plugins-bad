@@ -34,6 +34,11 @@ gstopencv_sources = [
   'gsthomography.cpp',
 ]
 
+gstopencv_dnn_sources = [
+  'gstcvdnnstyletransfer.cpp',
+  'gstdnnobjectdetect.cpp',
+]
+
 libopencv_headers = [
   'opencv2/bgsegm.hpp',
   'opencv2/calib3d.hpp',
@@ -57,6 +62,7 @@ libopencv4_headers = [
   'opencv4/opencv2/objdetect.hpp',
   'opencv4/opencv2/opencv.hpp',
   'opencv4/opencv2/video.hpp',
+  'opencv4/opencv2/dnn.hpp',
 ]
 
 gstopencv_cargs = ['-DGST_HAAR_CASCADES_DIR="@0@"']
@@ -65,7 +71,6 @@ opencv_dep = dependency('opencv', version : ['>= 3.0.0', '< 3.5.0'], required : 
 opencv_found = opencv_dep.found()
 
 if opencv_dep.version() >= '3.3.0'
-  gstopencv_sources += ['gstdnnobjectdetect.cpp']
   libopencv_headers += ['opencv2/dnn.hpp']
 endif
 
@@ -87,6 +92,10 @@ else
       endif
     endforeach
   endif
+endif
+
+if opencv_dep.version() >= '3.3.0'
+  gstopencv_sources += gstopencv_dnn_sources
 endif
 
 if opencv_found
