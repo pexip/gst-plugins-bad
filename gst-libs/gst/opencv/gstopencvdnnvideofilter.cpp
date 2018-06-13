@@ -129,6 +129,14 @@ enum
 G_DEFINE_ABSTRACT_TYPE (GstOpencvDnnVideoFilter, gst_opencv_dnn_video_filter, GST_TYPE_OPENCV_VIDEO_FILTER);
 #define parent_class gst_opencv_dnn_video_filter_parent_class
 
+Scalar
+gst_opencv_dnn_video_filter_get_mean_values (GstOpencvDnnVideoFilter * dnn)
+{
+  if (dnn->channel_order == GST_OPENCV_DNN_CHANNEL_ORDER_RGB)
+    return Scalar (dnn->mean_red, dnn->mean_green, dnn->mean_blue);
+  else
+    return Scalar (dnn->mean_blue, dnn->mean_green, dnn->mean_red);
+}
 
 static void
 gst_opencv_dnn_video_filter_set_property (GObject * object, guint prop_id,
@@ -242,24 +250,16 @@ get_out_blob_names(GstOpencvDnnVideoFilter * dnn)
   return names;
 }
 
-static GstFlowReturn
-gst_opencv_dnn_video_filter_transform_ip (GstOpencvVideoFilter * base, GstBuffer * buf,
-    IplImage * img)
+static Mat
+gst_opencv_dnn_video_filter_pre_process_default (GstOpencvDnnVideoFilter * dnn,
+    Mat & frame, gint width, gint height)
 {
-  GstOpencvDnnVideoFilter *dnn = GST_OPENCV_DNN_VIDEO_FILTER (base);
-  GstOpencvDnnVideoFilterClass *dnnclass =
-    GST_OPENCV_DNN_VIDEO_FILTER_GET_CLASS (base);
-  Net& net = dnn->net;
-  Mat frame = cvarrToMat (img);
-
   /* Create a 4D blob form the input image */
-  int input_width = dnn->width > 0 ? dnn->width : frame.cols;
-  int input_height = dnn->height > 0 ? dnn->height : frame.rows;
-  Size input_size (input_width, input_height);
-
-  // FIXME: Check caps if input is RGB or BGR
   Scalar mean;
   bool swap_rb;
+  Size size (width, height);
+
+  // FIXME: Check caps if input is RGB or BGR
   if (dnn->channel_order == GST_OPENCV_DNN_CHANNEL_ORDER_RGB) {
     /* Model takes same as image, no need to swap */
     swap_rb = false;
@@ -270,28 +270,115 @@ gst_opencv_dnn_video_filter_transform_ip (GstOpencvVideoFilter * base, GstBuffer
     mean = Scalar (dnn->mean_blue, dnn->mean_green, dnn->mean_red);
   }
 
-  Mat blob = blobFromImage (frame, dnn->scale, input_size, mean, swap_rb, false);
+  return blobFromImage (frame, dnn->scale, size, mean, swap_rb, false);
+}
+
+static vector<Mat>
+run_inference (GstOpencvDnnVideoFilter * dnn, Mat & blob, Mat & frame, int width, int height)
+{
+  Net &net = dnn->net;
 
   /* Run the model_fn */
   net.setInput (blob);
+  
   if (net.getLayer(0)->outputNameToIndex("im_info") != -1) {
     // Faster-RCNN or R-FCN
-    resize (frame, frame, input_size);
-    Mat im_info = (Mat_<float>(1, 3) << input_size.height, input_size.width, 1.6f);
+    resize (frame, frame, Size (width, height));
+    Mat im_info = (Mat_<float>(1, 3) << height, width, 1.6f);
     net.setInput(im_info, "im_info");
   }
+
   std::vector<Mat> outs;
   net.forward (outs, get_out_blob_names(dnn));
+  return outs;
+}
+
+static std::string type2str(int type) {
+  std::string r;
+
+  uchar depth = type & CV_MAT_DEPTH_MASK;
+  uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+  switch ( depth ) {
+    case CV_8U:  r = "8U"; break;
+    case CV_8S:  r = "8S"; break;
+    case CV_16U: r = "16U"; break;
+    case CV_16S: r = "16S"; break;
+    case CV_32S: r = "32S"; break;
+    case CV_32F: r = "32F"; break;
+    case CV_64F: r = "64F"; break;
+    default:     r = "User"; break;
+  }
+
+  r += "C";
+  r += (chans+'0');
+
+  return r;
+}
+
+static void
+print_mat (Mat & mat)
+{
+  GST_ERROR ("Matrix dim %d, type %d (%s), depth %d, channels %d, size (%d, %d, %d)",
+    mat.dims, mat.type(), type2str(mat.type()).c_str(), mat.depth(), mat.channels(),
+      mat.size[0], mat.size[1], mat.size[2]);
+}
+
+static void
+draw_inference_time (GstOpencvDnnVideoFilter * dnn, Mat & frame)
+{
+  vector<double> layers_times;
+  double freq = getTickFrequency () / 1000;
+  double t = dnn->net.getPerfProfile (layers_times) / freq;
+  string label = format ("Inference time: %.2f ms", t);
+  putText (frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar (0, 255, 0));
+}
+
+static GstFlowReturn
+gst_opencv_dnn_video_filter_transform (GstOpencvVideoFilter * base,
+   GstBuffer * buffer, IplImage * img, GstBuffer * outbuf, IplImage * outimg)
+{
+  GstOpencvDnnVideoFilter *dnn = GST_OPENCV_DNN_VIDEO_FILTER (base);
+  GstOpencvDnnVideoFilterClass *dnnclass =
+    GST_OPENCV_DNN_VIDEO_FILTER_GET_CLASS (base);
+
+  Net& net = dnn->net;
+  Mat frame = cvarrToMat (img);
+  Mat outframe = cvarrToMat (outimg);  
+  int width = dnn->width > 0 ? dnn->width : frame.cols;
+  int height = dnn->height > 0 ? dnn->height : frame.rows;
+
+  Mat blob = gst_opencv_dnn_video_filter_pre_process_default (dnn, frame, width, height);
+  vector<Mat> outs = run_inference (dnn, blob, frame, width, height);
+
+  if (dnnclass->post_process)
+    dnnclass->post_process (dnn, outs, frame, outframe);
+
+  draw_inference_time (dnn, outframe);
+
+  return GST_FLOW_OK;
+}
+
+static GstFlowReturn
+gst_opencv_dnn_video_filter_transform_ip (GstOpencvVideoFilter * base, GstBuffer * buf,
+    IplImage * img)
+{
+  GstOpencvDnnVideoFilter *dnn = GST_OPENCV_DNN_VIDEO_FILTER (base);
+  GstOpencvDnnVideoFilterClass *dnnclass =
+    GST_OPENCV_DNN_VIDEO_FILTER_GET_CLASS (base);
+
+  Net& net = dnn->net;
+  Mat frame = cvarrToMat (img);
+  int width = dnn->width > 0 ? dnn->width : frame.cols;
+  int height = dnn->height > 0 ? dnn->height : frame.rows;
+
+  Mat blob = gst_opencv_dnn_video_filter_pre_process_default (dnn, frame, width, height);
+  vector<Mat> outs = run_inference (dnn, blob, frame, width, height);
 
   if (dnnclass->post_process_ip)
-    dnnclass->post_process_ip (dnn, frame, outs);
+    dnnclass->post_process_ip (dnn, outs, frame);
 
-    // Draw efficiency information
-  std::vector<double> layersTimes;
-  double freq = getTickFrequency() / 1000;
-  double t = net.getPerfProfile(layersTimes) / freq;
-  std::string label = format("Inference time: %.2f ms", t);
-  putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+  draw_inference_time (dnn, frame);
 
   return GST_FLOW_OK;
 }
@@ -362,8 +449,7 @@ gst_opencv_dnn_video_filter_dispose (GObject * obj)
 static void
 gst_opencv_dnn_video_filter_init (GstOpencvDnnVideoFilter * dnn)
 {
-  gst_opencv_video_filter_set_in_place (GST_OPENCV_VIDEO_FILTER_CAST (dnn),
-      TRUE);
+  (void) dnn;
 }
 
 static void
@@ -390,6 +476,9 @@ gst_opencv_dnn_video_filter_class_init (GstOpencvDnnVideoFilterClass * klass)
   element_class->change_state =
     GST_DEBUG_FUNCPTR (gst_opencv_dnn_video_filter_change_state);
 
+
+  gstopencvbasefilter_class->cv_trans_func =
+    GST_DEBUG_FUNCPTR (gst_opencv_dnn_video_filter_transform);
   gstopencvbasefilter_class->cv_trans_ip_func =
     GST_DEBUG_FUNCPTR (gst_opencv_dnn_video_filter_transform_ip);
 
