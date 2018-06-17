@@ -198,11 +198,11 @@ draw_bounding_box (GstDnnObjectDetect * detect, int class_id, float conf, int le
   }
   /* Put label above box (if possible) */
   int base_line;
-  Size label_size = getTextSize (label, FONT_HERSHEY_SIMPLEX, 0.5, 1,
+  Size label_size = getTextSize (label, FONT_HERSHEY_DUPLEX, 0.5, 1,
      &base_line);
   int text_top = max(0, top - label_size.height - base_line);
   rectangle (frame, Point(left, text_top), Point (left + label_size.width, top), color, FILLED);
-  putText (frame, label, Point(left, top - base_line), FONT_HERSHEY_SIMPLEX, 0.5, Scalar::all(0));
+  putText (frame, label, Point(left, top - base_line), FONT_HERSHEY_DUPLEX, 0.5, Scalar::all(30), 1, LINE_AA);
 }
 
 static void
