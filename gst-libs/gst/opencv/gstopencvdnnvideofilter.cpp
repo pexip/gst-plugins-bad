@@ -331,7 +331,20 @@ draw_inference_time (GstOpencvDnnVideoFilter * dnn, Mat & frame)
   double freq = getTickFrequency () / 1000;
   double t = dnn->net.getPerfProfile (layers_times) / freq;
   string label = format ("Inference time: %.2f ms", t);
-  putText (frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar (0, 255, 0));
+
+  // Draw text on semi-transparent background.
+  // Get size of the "max" text we expect to draw so that the background box
+  // doesn't jump around in size.
+  int base_line;
+  Size text_size = getTextSize ("Inference time: 9999.99 ms", FONT_HERSHEY_DUPLEX, 0.5, 1,
+     &base_line);
+  int bg_width = text_size.width;
+  int bg_height = text_size.height + base_line;
+  Mat roi (frame, Rect(0, 0, bg_width, bg_height));
+  Mat bg (roi.size(), CV_8UC3, Scalar::all(0));
+  double alpha = 0.4;
+  addWeighted (bg, alpha, roi, 1 - alpha, 0, roi);
+  putText (frame, label, Point(0, text_size.height), FONT_HERSHEY_DUPLEX, 0.5, Scalar::all(255), 1, LINE_AA);
 }
 
 static GstFlowReturn
