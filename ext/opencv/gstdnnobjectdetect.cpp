@@ -164,9 +164,26 @@ draw_bounding_box (GstDnnObjectDetect * detect, int class_id, float conf, int le
   GstOpencvDnnVideoFilter *dnnfilter =
     GST_OPENCV_DNN_VIDEO_FILTER_CAST (detect);
 
+  /*
+    import seaborn as sns
+    for c in sns.hls_palette(8, l=.7, s=1.).as_hex():
+    print("Scalar (0x{}, 0x{}, 0x{}),".format(c[1:3], c[3:5], c[5:]))
+  */
+  static const Scalar colormap[] = {
+      Scalar(0xff, 0x6f, 0x66),
+      Scalar(0xff, 0xe2, 0x66),
+      Scalar(0xa9, 0xff, 0x66),
+      Scalar(0x66, 0xff, 0x95),
+      Scalar(0x66, 0xf6, 0xff),
+      Scalar(0x66, 0x83, 0xff),
+      Scalar(0xbc, 0x66, 0xff),
+      Scalar(0xff, 0x66, 0xd0),
+  };
+  static const int colormap_len = sizeof(colormap) / sizeof (*colormap);
+  Scalar color = colormap[class_id % colormap_len];
+
   /* Draw bounding box */
-  rectangle (frame, Point(left, top), Point(right, bottom),
-      Scalar(0, 255, 0));
+  rectangle(frame, Point(left, top), Point(right, bottom), color, 2);
 
   /* Draw confidence and class name */
   string label = format("%.2f", conf);
@@ -179,17 +196,14 @@ draw_bounding_box (GstDnnObjectDetect * detect, int class_id, float conf, int le
           (int) dnnfilter->classes.size());
     }
   }
+  /* Put label above box (if possible) */
   int base_line;
   Size label_size = getTextSize (label, FONT_HERSHEY_SIMPLEX, 0.5, 1,
      &base_line);
-  top = max (top, label_size.height);
-  rectangle (frame, Point(left, top - label_size.height),
-      Point(left + label_size.width, top + base_line), Scalar::all(255),
-      FILLED);
-  putText(frame, label, Point(left, top), FONT_HERSHEY_SIMPLEX,
-      0.5, Scalar());
+  int text_top = max(0, top - label_size.height - base_line);
+  rectangle (frame, Point(left, text_top), Point (left + label_size.width, top), color, FILLED);
+  putText (frame, label, Point(left, top - base_line), FONT_HERSHEY_SIMPLEX, 0.5, Scalar::all(0));
 }
-
 
 static void
 gst_dnn_object_detect_post_process (GstOpencvDnnVideoFilter * dnnfilter,
@@ -360,7 +374,7 @@ gst_dnn_object_detect_class_init (GstDnnObjectDetectClass * klass)
 {
   GObjectClass *gobject_class;
   GstElementClass *element_class;
-  GstOpencvVideoFilterClass *opencv_filter_class;
+  //GstOpencvVideoFilterClass *opencv_filter_class;
   GstOpencvDnnVideoFilterClass *opencv_dnnfilter_class;
 
   element_class = GST_ELEMENT_CLASS (klass);
