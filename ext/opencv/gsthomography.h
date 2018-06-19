@@ -66,6 +66,8 @@ struct _GstHomography
 {
   GstOpencvVideoFilter element;
   CvPoint2D32f src_points[4];
+  gint src_points_count;
+  gboolean active;
 };
 
 struct _GstHomographyClass
