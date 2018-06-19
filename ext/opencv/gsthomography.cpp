@@ -175,6 +175,11 @@ gst_homography_fixate_caps (GstBaseTransform * trans,
       "fixating othercaps %" GST_PTR_FORMAT " in direction %s based on %"GST_PTR_FORMAT,
       othercaps, (dir == GST_PAD_SINK) ? "sink" : "src", caps);
 
+  if (!filter->active) {
+    ret = gst_caps_ref (caps);
+    return ret;
+  }
+
   ret = gst_caps_intersect (othercaps, caps);
   if (gst_caps_is_empty (ret)) {
     gst_caps_unref (ret);
@@ -203,6 +208,8 @@ gst_homography_fixate_caps (GstBaseTransform * trans,
       "height", G_TYPE_INT, max_height,
       NULL);
 
+  GST_INFO_OBJECT (filter, "New caps %" GST_PTR_FORMAT, ret);
+
   return ret;
 }
 
@@ -211,6 +218,13 @@ gst_homography_transform (GstOpencvVideoFilter * base, GstBuffer * buf,
     IplImage * img, GstBuffer * outbuf, IplImage * outimg)
 {
   GstHomography *filter = GST_HOMOGRAPHY (base);
+
+  if (!filter->active) {
+    GST_LOG_OBJECT (filter, "not active, copy image");
+    cvCopy (img, outimg);
+    return GST_FLOW_OK;
+  }
+
 
   CvPoint2D32f dst_points[4];
 
@@ -264,6 +278,60 @@ gst_homography_class_init (GstHomographyClass * klass)
   gst_element_class_add_static_pad_template (element_class, &sink_factory);
 }
 
+static gboolean
+gst_homography_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
+{
+  GstHomography *filter = GST_HOMOGRAPHY (parent);
+  gboolean ret = TRUE;
+
+
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_NAVIGATION:
+    {
+        GstNavigationEventType etype = gst_navigation_event_get_type (event);
+        if (etype == GST_NAVIGATION_EVENT_MOUSE_BUTTON_RELEASE) {
+            gdouble x, y;
+            gint button = -1;
+
+            if (!gst_navigation_event_parse_mouse_button_event(event, &button, &x, &y))
+                return FALSE;
+
+            if (button == 1) {
+                if (!filter->active) {
+                    filter->src_points[filter->src_points_count].x = (gint) x;
+                    filter->src_points[filter->src_points_count].y = (gint) y;
+                    filter->src_points_count++;
+                    if (filter->src_points_count == 4) {
+                        filter->active = TRUE;
+                        GstEvent *event = gst_event_new_reconfigure ();
+                        gst_pad_push_event (GST_BASE_TRANSFORM_SINK_PAD (filter), event);
+/*
+                      // HACK: Setting the same caps on the sinkpad will trigger a new call to fixate()
+                        GstCaps *incaps = gst_pad_get_current_caps (GST_BASE_TRANSFORM_SINK_PAD (filter));
+                        gboolean res = gst_base_transform_setcaps (GST_BASE_TRANSFORM (filter),
+
+                        g_assert (res == TRUE);
+                        gst_caps_unref (incaps);
+ */
+                    }
+                }
+            } else {
+                filter->active = FALSE;
+                filter->src_points_count = 0;
+            }
+
+            //GST_WARNING_OBJECT(filter, "mouse button %d, x %f, y %f", button, x, y);
+        }
+        break;
+    }
+    default:
+      ret = gst_pad_event_default (pad, parent, event);
+      break;
+  }
+  return ret;
+}
+
+
 /* initialize the new element
  * instantiate pads and add them to element
  * set pad calback functions
@@ -285,6 +353,8 @@ gst_homography_init (GstHomography * filter)
   filter->src_points[3].x = 771;
   filter->src_points[3].y = 616;
 */
+
+/*
   filter->src_points[0].x = 132;
   filter->src_points[0].y = 57;
 
@@ -296,10 +366,16 @@ gst_homography_init (GstHomography * filter)
 
   filter->src_points[3].x = 413;
   filter->src_points[3].y = 659;
+*/
 
+  filter->active = FALSE;
+  filter->src_points_count = 0;
 
   gst_opencv_video_filter_set_in_place (GST_OPENCV_VIDEO_FILTER_CAST (filter),
       FALSE);
+
+  gst_pad_set_event_function(GST_BASE_TRANSFORM_SRC_PAD(filter),
+     GST_DEBUG_FUNCPTR (gst_homography_src_event));
 }
 
 
