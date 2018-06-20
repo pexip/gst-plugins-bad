@@ -50,8 +50,6 @@
 
 G_BEGIN_DECLS
 
-
-/* #defines don't like whitespacey bits */
 #define GST_TYPE_OPENCV_DNN_VIDEO_FILTER \
   (gst_opencv_dnn_video_filter_get_type())
 #define GST_OPENCV_DNN_VIDEO_FILTER(obj) \
@@ -77,6 +75,8 @@ typedef void (*GstOpencvDnnVideoFilterPostProcessIPFunc)
     (GstOpencvDnnVideoFilter * dnn, std::vector<cv::Mat> & output_blobs, cv::Mat & frame);
 
 #define GST_TYPE_OPENCV_DNN_CHANNEL_ORDER (gst_opencv_dnn_channel_order_get_type ())
+#define GST_TYPE_OPENCV_DNN_BACKEND (gst_opencv_dnn_backend_get_type ())
+#define GST_TYPE_OPENCV_DNN_TARGET (gst_opencv_dnn_target_get_type ())
 
 typedef enum _GstOpencvDnnChannelOrder {
   GST_OPENCV_DNN_CHANNEL_ORDER_RGB,
@@ -99,10 +99,8 @@ struct _GstOpencvDnnVideoFilter
   gdouble mean_green;
   gdouble mean_blue;
   gdouble scale;
-
-  /* backend */
-  /* target */
-  /* rgb */
+  cv::dnn::Backend backend;
+  cv::dnn::Target target;
 
   cv::dnn::Net net;
   std::vector<std::string> classes;
@@ -122,6 +120,12 @@ GType gst_opencv_dnn_video_filter_get_type (void);
 
 GST_OPENCV_API
 GType gst_opencv_dnn_channel_order_get_type (void);
+
+GST_OPENCV_API
+GType gst_opencv_dnn_backend_get_type (void);
+
+GST_OPENCV_API
+GType gst_opencv_dnn_target_get_type (void);
 
 GST_OPENCV_API
 cv::Scalar gst_opencv_dnn_video_filter_get_mean_values (GstOpencvDnnVideoFilter * dnn);
