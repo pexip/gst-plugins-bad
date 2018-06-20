@@ -96,6 +96,43 @@ gst_opencv_dnn_channel_order_get_type (void)
   return dnn_channel_order_type;
 }
 
+GType
+gst_opencv_dnn_backend_get_type (void)
+{
+  static GType dnn_backend_type = 0;
+  static const GEnumValue dnn_backend[] = {
+    { DNN_BACKEND_DEFAULT, "Default C++ backend", "default" },
+    { DNN_BACKEND_HALIDE, "Halide language", "halide" },
+    { DNN_BACKEND_INFERENCE_ENGINE, "Intel's Deep Learning Inference Engine", "inference-engine" },
+    { 0, NULL, NULL },
+  };
+
+  if (!dnn_backend_type) {
+    dnn_backend_type =
+        g_enum_register_static ("GstOpencvDnnBackend", dnn_backend);
+  }
+  return dnn_backend_type;
+}
+
+GType
+gst_opencv_dnn_target_get_type (void)
+{
+  static GType dnn_target_type = 0;
+  static const GEnumValue dnn_target[] = {
+    { DNN_TARGET_CPU, "CPU", "cpu" },
+    { DNN_TARGET_OPENCL, "OpenCL", "opencl" },
+    { DNN_TARGET_OPENCL_FP16, "OpenCL FP16", "opencl-fp16" },
+    { DNN_TARGET_MYRIAD, "Myriad", "myriad" }, // FIXME: What's this? When is it available
+    { 0, NULL, NULL },
+  };
+
+  if (!dnn_target_type) {
+    dnn_target_type =
+        g_enum_register_static ("GstOpencvDnnTarget", dnn_target);
+  }
+  return dnn_target_type;
+}
+
 GST_DEBUG_CATEGORY_STATIC (gst_opencv_dnn_video_filter_debug);
 #define GST_CAT_DEFAULT gst_opencv_dnn_video_filter_debug
 
@@ -109,6 +146,8 @@ GST_DEBUG_CATEGORY_STATIC (gst_opencv_dnn_video_filter_debug);
 #define DEFAULT_MEAN_GREEN 0.0
 #define DEFAULT_MEAN_BLUE 0.0
 #define DEFAULT_SCALE 1.0
+#define DEFAULT_BACKEND DNN_BACKEND_DEFAULT
+#define DEFAULT_TARGET DNN_TARGET_CPU
 
 enum
 {
@@ -124,10 +163,14 @@ enum
   PROP_MEAN_GREEN,
   PROP_MEAN_BLUE,
   PROP_SCALE,
-  };
+  PROP_BACKEND,
+  PROP_TARGET,
+};
+
 
 G_DEFINE_ABSTRACT_TYPE (GstOpencvDnnVideoFilter, gst_opencv_dnn_video_filter, GST_TYPE_OPENCV_VIDEO_FILTER);
 #define parent_class gst_opencv_dnn_video_filter_parent_class
+
 
 Scalar
 gst_opencv_dnn_video_filter_get_mean_values (GstOpencvDnnVideoFilter * dnn)
@@ -137,6 +180,7 @@ gst_opencv_dnn_video_filter_get_mean_values (GstOpencvDnnVideoFilter * dnn)
   else
     return Scalar (dnn->mean_blue, dnn->mean_green, dnn->mean_red);
 }
+
 
 static void
 gst_opencv_dnn_video_filter_set_property (GObject * object, guint prop_id,
@@ -182,11 +226,18 @@ gst_opencv_dnn_video_filter_set_property (GObject * object, guint prop_id,
     case PROP_SCALE:
       dnn->scale = g_value_get_double (value);
       break;
+    case  PROP_BACKEND:
+      dnn->backend = (Backend) g_value_get_enum (value);
+      break;
+    case  PROP_TARGET:
+      dnn->target = (Target) g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
 }
+
 
 static void
 gst_opencv_dnn_video_filter_get_property (GObject * object, guint prop_id,
@@ -228,7 +279,13 @@ gst_opencv_dnn_video_filter_get_property (GObject * object, guint prop_id,
     case PROP_SCALE:
       g_value_set_double (value, dnn->scale);
       break;
-    default:
+    case PROP_BACKEND:
+      g_value_set_enum (value, dnn->backend);
+      break;
+    case PROP_TARGET:
+      g_value_set_enum (value, dnn->target);
+      break;
+default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
@@ -249,6 +306,7 @@ get_out_blob_names(GstOpencvDnnVideoFilter * dnn)
   }
   return names;
 }
+
 
 static Mat
 gst_opencv_dnn_video_filter_pre_process_default (GstOpencvDnnVideoFilter * dnn,
@@ -273,6 +331,7 @@ gst_opencv_dnn_video_filter_pre_process_default (GstOpencvDnnVideoFilter * dnn,
   return blobFromImage (frame, dnn->scale, size, mean, swap_rb, false);
 }
 
+
 static vector<Mat>
 run_inference (GstOpencvDnnVideoFilter * dnn, Mat & blob, Mat & frame, int width, int height)
 {
@@ -293,36 +352,6 @@ run_inference (GstOpencvDnnVideoFilter * dnn, Mat & blob, Mat & frame, int width
   return outs;
 }
 
-static std::string type2str(int type) {
-  std::string r;
-
-  uchar depth = type & CV_MAT_DEPTH_MASK;
-  uchar chans = 1 + (type >> CV_CN_SHIFT);
-
-  switch ( depth ) {
-    case CV_8U:  r = "8U"; break;
-    case CV_8S:  r = "8S"; break;
-    case CV_16U: r = "16U"; break;
-    case CV_16S: r = "16S"; break;
-    case CV_32S: r = "32S"; break;
-    case CV_32F: r = "32F"; break;
-    case CV_64F: r = "64F"; break;
-    default:     r = "User"; break;
-  }
-
-  r += "C";
-  r += (chans+'0');
-
-  return r;
-}
-
-static void
-print_mat (Mat & mat)
-{
-  GST_ERROR ("Matrix dim %d, type %d (%s), depth %d, channels %d, size (%d, %d, %d)",
-    mat.dims, mat.type(), type2str(mat.type()).c_str(), mat.depth(), mat.channels(),
-      mat.size[0], mat.size[1], mat.size[2]);
-}
 
 static void
 draw_inference_time (GstOpencvDnnVideoFilter * dnn, Mat & frame)
@@ -346,6 +375,7 @@ draw_inference_time (GstOpencvDnnVideoFilter * dnn, Mat & frame)
   addWeighted (bg, alpha, roi, 1 - alpha, 0, roi);
   putText (frame, label, Point(0, text_size.height), FONT_HERSHEY_DUPLEX, 0.5, Scalar::all(255), 1, LINE_AA);
 }
+
 
 static GstFlowReturn
 gst_opencv_dnn_video_filter_transform (GstOpencvVideoFilter * base,
@@ -372,6 +402,7 @@ gst_opencv_dnn_video_filter_transform (GstOpencvVideoFilter * base,
   return GST_FLOW_OK;
 }
 
+
 static GstFlowReturn
 gst_opencv_dnn_video_filter_transform_ip (GstOpencvVideoFilter * base, GstBuffer * buf,
     IplImage * img)
@@ -396,14 +427,13 @@ gst_opencv_dnn_video_filter_transform_ip (GstOpencvVideoFilter * base, GstBuffer
   return GST_FLOW_OK;
 }
 
+
 static void
 load_model (GstOpencvDnnVideoFilter * dnn)
 {
-  // fixme: leak?
   dnn->net = readNet (dnn->model_fn, dnn->config_fn, dnn->framework);
-  // FIXME
-  dnn->net.setPreferableBackend(0);
-  dnn->net.setPreferableTarget(0);
+  dnn->net.setPreferableBackend(dnn->backend);
+  dnn->net.setPreferableTarget(dnn->target);
 
   /* Parse and store classes */
   dnn->classes.clear();
@@ -419,11 +449,13 @@ load_model (GstOpencvDnnVideoFilter * dnn)
   }
 }
 
+
 static void
 clear_model (GstOpencvDnnVideoFilter * dnn)
 {
   (void) dnn;
 }
+
 
 static GstStateChangeReturn
 gst_opencv_dnn_video_filter_change_state (GstElement * element,
@@ -459,11 +491,13 @@ gst_opencv_dnn_video_filter_dispose (GObject * obj)
   G_OBJECT_CLASS (parent_class)->dispose (obj);
 }
 
+
 static void
 gst_opencv_dnn_video_filter_init (GstOpencvDnnVideoFilter * dnn)
 {
   (void) dnn;
 }
+
 
 static void
 gst_opencv_dnn_video_filter_class_init (GstOpencvDnnVideoFilterClass * klass)
@@ -560,4 +594,16 @@ gst_opencv_dnn_video_filter_class_init (GstOpencvDnnVideoFilterClass * klass)
           "Scale factor to multiply with all channels",
           -G_MAXDOUBLE, G_MAXDOUBLE, DEFAULT_SCALE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT)));
+
+  g_object_class_install_property (gobject_class, PROP_BACKEND,
+      g_param_spec_enum ("backend", "Backend",
+          "Computation backend",
+          GST_TYPE_OPENCV_DNN_BACKEND, DEFAULT_BACKEND,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT | GST_PARAM_MUTABLE_READY)));
+
+  g_object_class_install_property (gobject_class, PROP_TARGET,
+      g_param_spec_enum ("target", "Target",
+          "Target computation device",
+          GST_TYPE_OPENCV_DNN_TARGET, DEFAULT_TARGET,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT | GST_PARAM_MUTABLE_READY)));
 }
