@@ -77,9 +77,9 @@ siren_init (void)
   region_size_inverse = 1.0f / region_size;
 
   for (i = 0; i < 64; i++) {
-    region_power = (float) pow (10, (i - 24) * STEPSIZE);
-    standard_deviation[i] = (float) sqrt (region_power);
-    deviation_inverse[i] = (float) 1.0 / standard_deviation[i];
+    region_power = (float)powf (10, (i - 24) * STEPSIZE);
+    standard_deviation[i] = (float)sqrtf (region_power);
+    deviation_inverse[i] = (float) 1.0f / standard_deviation[i];
   }
 
   for (i = 0; i < 63; i++)
