@@ -116,6 +116,7 @@ plugin_init (GstPlugin * plugin)
     return FALSE;
 
   if (!gst_camera_undistort_plugin_init (plugin))
+    return FALSE;
 
   if (!gst_homography_plugin_init (plugin))
     return FALSE;
