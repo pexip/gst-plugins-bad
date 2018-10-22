@@ -46,7 +46,7 @@ if opencv_dep.version() >= '3.3.0'
     'gstcvdnnstyletransfer.cpp',
     'gstdnnobjectdetect.cpp',
   ]
-  libopencv3_headers += ['opencv2/dnn.hpp']
+  libopencv_headers += ['opencv2/dnn.hpp']
 endif
 
 gstopencv_cargs = ['-DGST_HAAR_CASCADES_DIR="@0@"']
