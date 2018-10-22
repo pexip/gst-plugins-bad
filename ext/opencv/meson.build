@@ -44,6 +44,7 @@ libopencv_headers = [
 if opencv_dep.version() >= '3.3.0'
   gstopencv_sources += [
     'gstcvdnnstyletransfer.cpp',
+    'gstcvdnnclassify.cpp',
     'gstdnnobjectdetect.cpp',
   ]
   libopencv_headers += ['opencv2/dnn.hpp']
