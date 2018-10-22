@@ -46,6 +46,7 @@
 #include "gstcameracalibrate.h"
 #include "gstcameraundistort.h"
 #include "gsthomography.h"
+#include "gstcvdnnclassify.h"
 #include "gstcvdnnstyletransfer.h"
 #include "gstdnnobjectdetect.h"
 
@@ -119,6 +120,9 @@ plugin_init (GstPlugin * plugin)
     return FALSE;
 
   if (!gst_homography_plugin_init (plugin))
+    return FALSE;
+
+  if (!gst_cv_dnn_classify_plugin_init (plugin))
     return FALSE;
 
   if (!gst_cv_dnn_style_transfer_plugin_init (plugin))
