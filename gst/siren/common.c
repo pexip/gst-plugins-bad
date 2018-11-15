@@ -62,7 +62,7 @@ static int siren_initialized = 0;
 /*
   STEPSIZE = 2.0 * log(sqrt(2));
 */
-#define STEPSIZE 0.3010299957
+#define STEPSIZE 0.3010299957f
 
 void
 siren_init (void)
