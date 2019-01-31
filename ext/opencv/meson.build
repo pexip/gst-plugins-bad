@@ -36,6 +36,7 @@ gstopencv_sources = [
 
 gstopencv_dnn_sources = [
   'gstcvdnnclassify.cpp',
+  'gstcvdnnmaskrcnn.cpp',
   'gstcvdnnstyletransfer.cpp',
   'gstdnnobjectdetect.cpp',
 ]

@@ -295,8 +295,19 @@ default:
 static vector<String>
 get_out_blob_names(GstOpencvDnnVideoFilter * dnn)
 {
+#if 1
+  static std::vector<String> names(2);
+  static gboolean first = TRUE;
+  if (first) {
+    names[0] = "detection_out_final";
+    names[1] = "detection_masks";
+  }
+  return names;
+#else
+
 // FIXME: Store names in object
-  static std::vector<cv::String> names;
+  std::vector<cv::String> names;
+
   if (names.empty()) {
     vector<int> out_layers = dnn->net.getUnconnectedOutLayers();
     vector<String> layer_names = dnn->net.getLayerNames();
@@ -304,6 +315,8 @@ get_out_blob_names(GstOpencvDnnVideoFilter * dnn)
     for (size_t i = 0; i < out_layers.size(); ++i)
       names[i] = layer_names[out_layers[i] - 1];
   }
+#endif
+
   return names;
 }
 
