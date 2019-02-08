@@ -80,6 +80,7 @@ enum
   PROP_TS_OFFSET,
   PROP_STATS,
   PROP_START_TIME,
+  PROP_SSRC,
 };
 
 typedef enum
@@ -111,6 +112,7 @@ struct _GstPcapParse
   GstCaps *caps;
   gint64 offset;
   GstClockTime start_ts;
+  guint32 ssrc;
 
   /* state */
   GstAdapter * adapter;
@@ -287,10 +289,10 @@ _check_rtp_rtcp (const guint8 * payload, gint payload_size,
   /* for payload_type range 66-95 we assume RTCP, not RTP */
   if (rtp->payload_type >= 66 && rtp->payload_type <= 95) {
     *is_rtcp = TRUE;
-    *ssrc = rtp->timestamp;     /* Hackish, but true */
+    *ssrc = g_ntohl (rtp->timestamp);     /* Hackish, but true */
   } else {
     *payload_type = rtp->payload_type;
-    *ssrc = rtp->ssrc;
+    *ssrc = g_ntohl (rtp->ssrc);
     *is_rtp = TRUE;
   }
 }
@@ -485,6 +487,21 @@ gst_pcap_parse_scan_frame (GstPcapParse * self,
     GST_LOG_OBJECT (self, "Filtering on dst-port (%d != %d)",
         dst_port, self->dst_port);
     goto done;
+  }
+
+  if (self->ssrc != 0) {
+    gboolean is_rtp;
+    gboolean is_rtcp;
+    gint payload_type;
+    guint32 ssrc;
+
+    _check_rtp_rtcp (*payload, *payload_size, &is_rtp, &is_rtcp,
+	&payload_type, &ssrc);
+    if ((is_rtp || is_rtcp) && ssrc != self->ssrc) {
+      GST_LOG_OBJECT (self, "Filtering on ssrc (%u != %u)",
+          ssrc, self->ssrc);
+      goto done;
+    }
   }
 
   ret = TRUE;
@@ -725,6 +742,10 @@ gst_pcap_parse_get_property (GObject * object, guint prop_id,
       g_value_take_boxed (value, gst_pcap_parse_get_stats (self));
       break;
 
+    case PROP_SSRC:
+      g_value_set_uint (value, self->ssrc);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -783,6 +804,10 @@ gst_pcap_parse_set_property (GObject * object, guint prop_id,
 
     case PROP_START_TIME:
       self->start_ts = g_value_get_int64 (value);
+      break;
+
+    case PROP_SSRC:
+      self->ssrc = g_value_get_uint (value);
       break;
 
     default:
@@ -902,6 +927,11 @@ gst_pcap_parse_class_init (GstPcapParseClass * klass)
       g_param_spec_boxed ("stats", "Stats",
           "Some stats for the different streams parsed", G_TYPE_VALUE_ARRAY,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class,
+      PROP_SSRC, g_param_spec_uint ("ssrc", "SSRC",
+          "SSRC to restrict to", 0, G_MAXUINT, 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_static_pad_template (element_class, &sink_template);
   gst_element_class_add_static_pad_template (element_class, &src_template);
