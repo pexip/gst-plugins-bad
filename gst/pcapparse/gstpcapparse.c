@@ -50,6 +50,7 @@
 #define GLIB_DISABLE_DEPRECATION_WARNINGS
 
 #include "gstpcapparse.h"
+#include "pcapstats.h"
 
 #include <string.h>
 
@@ -202,27 +203,40 @@ static GValueArray *
 gst_pcap_parse_get_stats (GstPcapParse * self)
 {
   GValueArray *ret;
-  GList *streams, *walk;
-  guint len, i;
+  GList *stats_list, *walk;
+  guint len, i, j, k = 0, count = 0;
 
   len = g_hash_table_size (self->stats_map);
-  ret = g_value_array_new (len);
-
-  walk = streams = g_hash_table_get_values (self->stats_map);
+  walk = stats_list = g_hash_table_get_values (self->stats_map);
   for (i = 0; i < len; i++) {
-    GstStructure *s = walk->data;
-    GValue *value;
-    ret->n_values++;
-    value = g_value_array_get_nth (ret, i);
-    GST_INFO_OBJECT (self, "Adding stats %d: %" GST_PTR_FORMAT, i, s);
+    PcapStats * stats = walk->data;
 
-    g_value_init (value, GST_TYPE_STRUCTURE);
-    gst_value_set_structure (value, s);
+    count += pcap_stats_count (stats);
 
     walk = walk->next;
   }
 
-  g_list_free (streams);
+  ret = g_value_array_new (count);
+  walk = stats_list;
+  for (i = 0; i < len; i++) {
+    PcapStats * stats = walk->data;
+    count = pcap_stats_count (stats);
+    for (j = 0; j < count; j++) {
+      GstStructure *s;
+      GValue *value;
+      ret->n_values++;
+      s = pcap_stats_nth_to_structure (stats, j);
+      value = g_value_array_get_nth (ret, k);
+      GST_INFO_OBJECT (self, "Adding stats %d: %" GST_PTR_FORMAT, k, s);
+
+      g_value_init (value, GST_TYPE_STRUCTURE);
+      g_value_take_boxed (value, s);
+      k++;
+    }
+    walk = walk->next;
+  }
+
+  g_list_free (stats_list);
 
   return ret;
 }
@@ -282,7 +296,7 @@ _check_rtp_rtcp (const guint8 * payload, gint payload_size,
 }
 
 static void
-_add_rtp_stats (GstStructure * s, const guint8 * payload, gint payload_size)
+_add_rtp_stats (PcapStats * stats, const guint8 * payload, gint payload_size)
 {
   gboolean is_rtp;
   gboolean is_rtcp;
@@ -293,17 +307,9 @@ _add_rtp_stats (GstStructure * s, const guint8 * payload, gint payload_size)
       &ssrc);
 
   if (is_rtcp) {
-    gst_structure_set (s, "has-rtcp", G_TYPE_BOOLEAN, TRUE, NULL);
-
-    gst_structure_set (s, "ssrc", G_TYPE_UINT, ssrc, NULL);
-
+    pcap_stats_update_rtcp (stats, ssrc, payload_size);
   } else if (is_rtp) {
-    gst_structure_set (s, "has-rtp", G_TYPE_BOOLEAN, TRUE, NULL);
-
-    /* FIXME: support multiple pt/ssrc */
-    gst_structure_set (s,
-        "payload-type", G_TYPE_INT, payload_type,
-        "ssrc", G_TYPE_UINT, ssrc, NULL);
+    pcap_stats_update_rtp (stats, ssrc, payload_type, payload_size);
   }
 }
 
@@ -313,37 +319,21 @@ gst_pcap_parse_add_stats (GstPcapParse * self,
     const gchar * src_ip, guint16 src_port,
     const gchar * dst_ip, guint16 dst_port)
 {
-  GstStructure *s;
-  gint packets;
-  gint bytes;
+  PcapStats *stats;
 
   gchar *key_str = g_strdup_printf ("%s:%d->%s:%d",
       src_ip, src_port, dst_ip, dst_port);
 
-  s = g_hash_table_lookup (self->stats_map, key_str);
-  if (s == NULL) {
-    s = gst_structure_new ("stats",
-        "first-ts", G_TYPE_UINT64, self->cur_ts,
-        "id-str", G_TYPE_STRING, key_str,
-        "src-ip", G_TYPE_STRING, src_ip,
-        "src-port", G_TYPE_INT, src_port,
-        "dst-ip", G_TYPE_STRING, dst_ip,
-        "dst-port", G_TYPE_INT, dst_port,
-        "packets", G_TYPE_INT, 0, "bytes", G_TYPE_INT, 0, NULL);
-    g_hash_table_insert (self->stats_map, g_strdup (key_str), s);
+  stats = g_hash_table_lookup (self->stats_map, key_str);
+  if (stats == NULL) {
+    stats = pcap_stats_new (key_str, src_ip, src_port, dst_ip, dst_port);
+    g_hash_table_insert (self->stats_map, g_strdup (key_str), stats);
   }
   g_free (key_str);
 
-  gst_structure_get (s,
-      "packets", G_TYPE_INT, &packets, "bytes", G_TYPE_INT, &bytes, NULL);
+  pcap_stats_update (stats, self->cur_ts, payload_size);
 
-  packets += 1;
-  bytes += payload_size;
-
-  gst_structure_set (s,
-      "packets", G_TYPE_INT, packets, "bytes", G_TYPE_INT, bytes, NULL);
-
-  _add_rtp_stats (s, payload, payload_size);
+  _add_rtp_stats (stats, payload, payload_size);
 }
 
 static gboolean
@@ -948,5 +938,5 @@ gst_pcap_parse_init (GstPcapParse * self)
   self->adapter = gst_adapter_new ();
   self->stats_map =
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-      (GDestroyNotify) gst_structure_free);
+      (GDestroyNotify) pcap_stats_free);
 }

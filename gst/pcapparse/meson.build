@@ -2,6 +2,7 @@ capp_sources = [
   'gstpcapparse.c',
   'gstirtspparse.c',
   'plugin.c',
+  'pcapstats.c',
 ]
 
 gstpcapparse = library('gstpcapparse',
