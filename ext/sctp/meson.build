@@ -11,19 +11,25 @@ endif
 
 sctp_platform_deps = []
 
-sctp_dep = cc.find_library('usrsctp', required : get_option('sctp').enabled())
-sctp_header = cc.has_header('usrsctp.h')
-if host_system == 'windows'
-  sctp_platform_deps += [cc.find_library('ws2_32')]
+sctp_dep = dependency('usrsctp', required : get_option('sctp').enabled())
+if sctp_dep.found()
+  sctp_available = true
+else
+  sctp_dep = cc.find_library('usrsctp', required : get_option('sctp').enabled())
+  sctp_header = cc.has_header('usrsctp.h')
+  if host_system == 'windows'
+    sctp_platform_deps += [cc.find_library('ws2_32')]
+  endif
+  sctp_available = sctp_dep.found() and sctp_header
 endif
 
 if get_option('sctp').enabled()
-  if not sctp_dep.found() or not sctp_header
+  if not sctp_available
     error('sctp plugin enabled but could not find libusrsctp')
   endif
 endif
 
-if sctp_dep.found() and sctp_header
+if sctp_available
   gstsctp = library('gstsctp',
     sctp_sources,
     c_args : gst_plugins_bad_args,
