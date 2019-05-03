@@ -505,6 +505,7 @@ get_pad_for_stream_id (GstSctpDec * self, guint16 stream_id)
   template = gst_static_pad_template_get (&src_template);
   new_pad = g_object_new (GST_TYPE_SCTP_DEC_PAD, "name", pad_name,
       "direction", template->direction, "template", template, NULL);
+  g_object_unref (template);
   g_free (pad_name);
 
   gst_pad_set_event_function (new_pad,
