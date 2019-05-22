@@ -192,6 +192,7 @@ gst_sctp_association_init (GstSctpAssociation * self)
 
   self->connection_thread = NULL;
   g_mutex_init (&self->association_mutex);
+  self->done_connect = FALSE;
 
   self->state = GST_SCTP_ASSOCIATION_STATE_NEW;
 
@@ -430,7 +431,20 @@ void
 gst_sctp_association_incoming_packet (GstSctpAssociation * self, guint8 * buf,
     guint32 length)
 {
-  usrsctp_conninput ((void *) self, (const void *) buf, (size_t) length, 0);
+  /* Discard any packets received before we've attempted to connect out.
+   *
+   * This resolves a glare condition where both ends attempt to create
+   * an association simultaneously: if we receive the INIT from the remote
+   * side before we have fully configured ourselves then we would ordinarily
+   * reject it with an ABORT, causing the remote side to give up. Instead,
+   * drop anything received before we're ready and rely on our outbound INIT
+   * to create the association, instead.
+   */
+  if (self->done_connect) {
+    usrsctp_conninput ((void *) self, (const void *) buf, (size_t) length, 0);
+  } else {
+    g_info ("Discarding inbound packet before SCTP fully configured.");
+  }
 }
 
 gboolean
@@ -518,6 +532,7 @@ gst_sctp_association_force_close (GstSctpAssociation * self)
     self->sctp_ass_sock = NULL;
 
   }
+  self->done_connect = FALSE;
   g_mutex_unlock (&self->association_mutex);
 }
 
@@ -653,6 +668,7 @@ client_role_connect (GstSctpAssociation * self)
     g_warning ("usrsctp_connect() error: (%u) %s", errno, strerror (errno));
     goto error;
   }
+  self->done_connect = TRUE;
   g_mutex_unlock (&self->association_mutex);
   return TRUE;
 error:
