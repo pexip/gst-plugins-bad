@@ -83,6 +83,7 @@ struct _GstSctpAssociation
   GstSctpAssociationState state;
 
   GThread *connection_thread;
+  gboolean done_connect;
 
   GstSctpAssociationPacketReceivedCb packet_received_cb;
   gpointer packet_received_user_data;
