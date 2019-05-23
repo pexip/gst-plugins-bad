@@ -439,4 +439,7 @@ configure_file(output : 'config.h', configuration : cdata)
 
 run_command(python3, '-c', 'import shutil; shutil.copy("hooks/pre-commit.hook", ".git/hooks/pre-commit")')
 
-subdir('docs')
+if not get_option('doc').disabled()
+  subdir('docs')
+endif
+
