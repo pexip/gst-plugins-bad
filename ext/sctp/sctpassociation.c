@@ -489,7 +489,7 @@ gst_sctp_association_send_data (GstSctpAssociation * self, guint8 * buf,
       /* Resending this buffer is taken care of by the gstsctpenc */
       goto end;
     } else {
-      g_warning ("Error sending data on stream %u: (%u) %s", stream_id, errno,
+      g_info ("Error sending data on stream %u: (%u) %s", stream_id, errno,
           strerror (errno));
       goto end;
     }
@@ -655,7 +655,7 @@ client_role_connect (GstSctpAssociation * self)
       usrsctp_bind (self->sctp_ass_sock, (struct sockaddr *) &addr,
       sizeof (struct sockaddr_conn));
   if (ret < 0) {
-    g_warning ("usrsctp_bind() error: (%u) %s", errno, strerror (errno));
+    g_info ("usrsctp_bind() error: (%u) %s", errno, strerror (errno));
     goto error;
   }
 
@@ -664,7 +664,7 @@ client_role_connect (GstSctpAssociation * self)
       usrsctp_connect (self->sctp_ass_sock, (struct sockaddr *) &addr,
       sizeof (struct sockaddr_conn));
   if (ret < 0 && errno != EINPROGRESS) {
-    g_warning ("usrsctp_connect() error: (%u) %s", errno, strerror (errno));
+    g_info ("usrsctp_connect() error: (%u) %s", errno, strerror (errno));
     goto error;
   }
   self->done_connect = TRUE;
@@ -696,7 +696,7 @@ receive_cb (struct socket *sock, union sctp_sockstore addr, void *data,
 
   if (!data) {
     /* Not sure if this can happend. */
-    g_warning ("Received empty data buffer");
+    g_info ("Received empty data buffer");
   } else {
     if (flags & MSG_NOTIFICATION) {
       handle_notification (self, (const union sctp_notification *) data,
@@ -791,14 +791,14 @@ handle_association_changed (GstSctpAssociation * self,
         new_state = GST_SCTP_ASSOCIATION_STATE_CONNECTED;
         g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "SCTP association connected!");
       } else if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
-        g_warning ("SCTP association already open");
+        g_info ("SCTP association already open");
       } else {
-        g_warning ("SCTP association in unexpected state");
+        g_info ("SCTP association in unexpected state");
       }
       g_mutex_unlock (&self->association_mutex);
       break;
     case SCTP_COMM_LOST:
-      g_warning ("SCTP event SCTP_COMM_LOST received");
+      g_info ("SCTP event SCTP_COMM_LOST received");
       /* TODO: Tear down association and signal that this has happend */
       break;
     case SCTP_RESTART:
@@ -806,11 +806,11 @@ handle_association_changed (GstSctpAssociation * self,
           "SCTP event SCTP_RESTART received");
       break;
     case SCTP_SHUTDOWN_COMP:
-      g_warning ("SCTP event SCTP_SHUTDOWN_COMP received");
+      g_info ("SCTP event SCTP_SHUTDOWN_COMP received");
       /* TODO: Tear down association and signal that this has happend */
       break;
     case SCTP_CANT_STR_ASSOC:
-      g_warning ("SCTP event SCTP_CANT_STR_ASSOC received");
+      g_info ("SCTP event SCTP_CANT_STR_ASSOC received");
       break;
   }
 

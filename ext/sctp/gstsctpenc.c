@@ -572,7 +572,7 @@ gst_sctp_enc_sink_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
   }
 
   if (!gst_buffer_map (buffer, &map, GST_MAP_READ)) {
-    g_warning ("Could not map GstBuffer");
+    g_info ("Could not map GstBuffer");
     goto error;
   }
 
