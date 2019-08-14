@@ -61,6 +61,7 @@ enum
   PROP_GST_SCTP_ASSOCIATION_ID,
   PROP_REMOTE_SCTP_PORT,
   PROP_USE_SOCK_STREAM,
+  PROP_DEBUG_SCTP,
 
   NUM_PROPERTIES
 };
@@ -211,6 +212,11 @@ gst_sctp_enc_class_init (GstSctpEncClass * klass)
       "When TRUE the partial reliability parameters of the channel are ignored.",
       DEFAULT_USE_SOCK_STREAM, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+  properties[PROP_DEBUG_SCTP] =
+      g_param_spec_boolean ("debug-sctp", "Debug SCTP stack",
+      "When set to TRUE, enable SCTP stack debugging.",
+      FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (gobject_class, NUM_PROPERTIES, properties);
 
   signals[SIGNAL_SCTP_ASSOCIATION_ESTABLISHED] =
@@ -298,6 +304,9 @@ gst_sctp_enc_set_property (GObject * object, guint prop_id,
     case PROP_USE_SOCK_STREAM:
       self->use_sock_stream = g_value_get_boolean (value);
       break;
+    case PROP_DEBUG_SCTP:
+      self->debug_sctp = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (self, prop_id, pspec);
       break;
@@ -319,6 +328,9 @@ gst_sctp_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_USE_SOCK_STREAM:
       g_value_set_boolean (value, self->use_sock_stream);
+      break;
+    case PROP_DEBUG_SCTP:
+      g_value_set_boolean (value, self->debug_sctp);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (self, prop_id, pspec);
@@ -754,6 +766,9 @@ configure_association (GstSctpEnc * self)
 
   g_object_bind_property (self, "use-sock-stream", self->sctp_association,
       "use-sock-stream", G_BINDING_SYNC_CREATE);
+
+  g_object_bind_property (self, "debug-sctp", self->sctp_association,
+      "debug-sctp", G_BINDING_SYNC_CREATE);
 
   gst_sctp_association_set_on_packet_out (self->sctp_association,
       on_sctp_packet_out, self);
