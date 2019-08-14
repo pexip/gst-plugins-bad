@@ -81,6 +81,7 @@ enum
   PROP_STATE,
   PROP_USE_SOCK_STREAM,
   PROP_DEBUG_SCTP,
+  PROP_AGGRESSIVE_HEARTBEAT,
 
   NUM_PROPERTIES
 };
@@ -171,6 +172,12 @@ gst_sctp_association_class_init (GstSctpAssociationClass * klass)
   properties[PROP_DEBUG_SCTP] =
       g_param_spec_boolean ("debug-sctp", "Debug SCTP stack",
       "When set to TRUE, enable SCTP stack debugging.",
+      FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  properties[PROP_AGGRESSIVE_HEARTBEAT] =
+      g_param_spec_boolean ("aggressive-heartbeat", "Aggressive heartbeat",
+      "When set to TRUE, set the heartbeat interval to 1000ms and the assoc "
+      "rtx max to 2.",
       FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (gobject_class, NUM_PROPERTIES, properties);
@@ -270,6 +277,16 @@ gst_sctp_association_set_property (GObject * object, guint prop_id,
         usrsctp_sysctl_set_sctp_debug_on (0);
       }
       break;
+    case PROP_AGGRESSIVE_HEARTBEAT:
+      self->aggressive_heartbeat = g_value_get_boolean (value);
+      if (self->aggressive_heartbeat) {
+        usrsctp_sysctl_set_sctp_heartbeat_interval_default (1000);
+        usrsctp_sysctl_set_sctp_assoc_rtx_max_default (2);
+      } else {
+        usrsctp_sysctl_set_sctp_heartbeat_interval_default (30000);
+        usrsctp_sysctl_set_sctp_assoc_rtx_max_default (10);
+      }
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (self, prop_id, pspec);
       break;
@@ -333,6 +350,9 @@ gst_sctp_association_get_property (GObject * object, guint prop_id,
       break;
     case PROP_DEBUG_SCTP:
       g_value_set_boolean (value, self->debug_sctp);
+      break;
+    case PROP_AGGRESSIVE_HEARTBEAT:
+      g_value_set_boolean (value, self->aggressive_heartbeat);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (self, prop_id, pspec);
