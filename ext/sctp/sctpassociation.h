@@ -27,8 +27,6 @@
 #define __GST_SCTP_ASSOCIATION_H__
 
 #include <glib-object.h>
-#define INET
-#define INET6
 #include <usrsctp.h>
 
 G_BEGIN_DECLS
