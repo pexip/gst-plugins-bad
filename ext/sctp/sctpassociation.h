@@ -27,6 +27,7 @@
 #define __GST_SCTP_ASSOCIATION_H__
 
 #include <glib-object.h>
+#define SCTP_DEBUG
 #include <usrsctp.h>
 
 G_BEGIN_DECLS
@@ -74,6 +75,7 @@ struct _GstSctpAssociation
   guint16 local_port;
   guint16 remote_port;
   gboolean use_sock_stream;
+  gboolean debug_sctp;
   struct socket *sctp_ass_sock;
 
   GMutex association_mutex;
