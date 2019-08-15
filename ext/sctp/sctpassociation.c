@@ -572,6 +572,7 @@ gst_sctp_association_force_close (GstSctpAssociation * self)
 
   }
   self->done_connect = FALSE;
+  self->sctp_assoc_id = 0;
   g_mutex_unlock (&self->association_mutex);
 }
 
@@ -823,6 +824,7 @@ handle_association_changed (GstSctpAssociation * self,
       g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "SCTP_COMM_UP()");
       g_mutex_lock (&self->association_mutex);
       if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTING) {
+        self->sctp_assoc_id = sac->sac_assoc_id;
         change_state = TRUE;
         new_state = GST_SCTP_ASSOCIATION_STATE_CONNECTED;
         g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "SCTP association connected!");
