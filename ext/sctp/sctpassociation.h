@@ -85,6 +85,7 @@ struct _GstSctpAssociation
 
   GThread *connection_thread;
   gboolean done_connect;
+  guint32 sctp_assoc_id;
 
   GstSctpAssociationPacketReceivedCb packet_received_cb;
   gpointer packet_received_user_data;
