@@ -51,6 +51,7 @@ GST_STATIC_PAD_TEMPLATE ("src_%u", GST_PAD_SRC,
 enum
 {
   SIGNAL_RESET_STREAM,
+  SIGNAL_ASSOC_RESTART,
   NUM_SIGNALS
 };
 
@@ -154,6 +155,8 @@ static void gst_sctp_data_srcpad_loop (GstPad * pad);
 static gboolean configure_association (GstSctpDec * self);
 static void on_gst_sctp_association_stream_reset (GstSctpAssociation *
     gst_sctp_association, guint16 stream_id, GstSctpDec * self);
+static void on_gst_sctp_association_restart (GstSctpAssociation *
+    gst_sctp_association, GstSctpDec * self);
 static void on_receive (GstSctpAssociation * gst_sctp_association, guint8 * buf,
     gsize length, guint16 stream_id, guint ppid, gpointer user_data);
 static void stop_srcpad_task (GstPad * pad);
@@ -209,6 +212,11 @@ gst_sctp_dec_class_init (GstSctpDecClass * klass)
       G_TYPE_FROM_CLASS (gobject_class), G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstSctpDecClass, on_reset_stream), NULL, NULL,
       NULL, G_TYPE_NONE, 1, G_TYPE_UINT);
+
+  signals[SIGNAL_ASSOC_RESTART] = g_signal_new ("sctp-association-restarted",
+      G_TYPE_FROM_CLASS (gobject_class), G_SIGNAL_RUN_LAST,
+      G_STRUCT_OFFSET (GstSctpDecClass, on_association_restart), NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 0);
 
   gst_element_class_set_static_metadata (element_class,
       "SCTP Decoder",
@@ -425,6 +433,10 @@ configure_association (GstSctpDec * self)
       g_signal_connect_object (self->sctp_association, "stream-reset",
       G_CALLBACK (on_gst_sctp_association_stream_reset), self, 0);
 
+  self->signal_handler_association_restart =
+      g_signal_connect_object (self->sctp_association, "association-restart",
+      G_CALLBACK (on_gst_sctp_association_restart), self, 0);
+
   g_object_bind_property (self, "local-sctp-port", self->sctp_association,
       "local-port", G_BINDING_SYNC_CREATE);
 
@@ -563,6 +575,14 @@ on_gst_sctp_association_stream_reset (GstSctpAssociation * gst_sctp_association,
 }
 
 static void
+on_gst_sctp_association_restart (GstSctpAssociation * gst_sctp_association,
+    GstSctpDec * self)
+{
+  (void ) gst_sctp_association;
+  g_signal_emit (self, signals[SIGNAL_ASSOC_RESTART], 0);
+}
+
+static void
 data_queue_item_free (GstDataQueueItem * item)
 {
   if (item->object)
@@ -637,6 +657,8 @@ sctpdec_cleanup (GstSctpDec * self)
     /* FIXME: make this threadsafe */
     /* gst_sctp_association_set_on_packet_received (self->sctp_association, NULL,
        NULL); */
+    g_signal_handler_disconnect (self->sctp_association,
+        self->signal_handler_association_restart);
     g_signal_handler_disconnect (self->sctp_association,
         self->signal_handler_stream_reset);
     stop_all_srcpad_tasks (self);
