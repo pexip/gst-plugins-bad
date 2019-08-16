@@ -800,40 +800,61 @@ handle_notification (GstSctpAssociation * self,
 }
 
 static void
+handle_sctp_comm_lost_or_shutdown (GstSctpAssociation * self,
+    const struct sctp_assoc_change * sac)
+{
+  g_info ("SCTP event %s received",
+      sac->sac_state == SCTP_COMM_LOST ?
+      "SCTP_COMM_LOST" : "SCTP_SHUTDOWN_COMP");
+
+  g_mutex_lock (&self->association_mutex);
+
+  if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
+    gst_sctp_association_change_state_unlocked (self,
+        GST_SCTP_ASSOCIATION_STATE_DISCONNECTING);
+  }
+
+  /* Fall through to ensure the transition to disconnected occurs */
+
+  if (self->state == GST_SCTP_ASSOCIATION_STATE_DISCONNECTING) {
+    gst_sctp_association_change_state_unlocked (self,
+        GST_SCTP_ASSOCIATION_STATE_DISCONNECTED);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,
+        "SCTP association disconnected!");
+  }
+
+  g_mutex_unlock (&self->association_mutex);
+}
+
+static void
+handle_sctp_comm_up (GstSctpAssociation * self,
+    const struct sctp_assoc_change * sac)
+{
+  g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "SCTP_COMM_UP()");
+  g_mutex_lock (&self->association_mutex);
+  if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTING) {
+    self->sctp_assoc_id = sac->sac_assoc_id;
+    gst_sctp_association_change_state_unlocked (self,
+        GST_SCTP_ASSOCIATION_STATE_CONNECTED);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "SCTP association connected!");
+  } else if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
+    g_info ("SCTP association already open");
+  } else {
+    g_info ("SCTP association in unexpected state");
+  }
+  g_mutex_unlock (&self->association_mutex);
+}
+
+static void
 handle_association_changed (GstSctpAssociation * self,
     const struct sctp_assoc_change *sac)
 {
   switch (sac->sac_state) {
     case SCTP_COMM_UP:
-      g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "SCTP_COMM_UP()");
-      g_mutex_lock (&self->association_mutex);
-      if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTING) {
-        self->sctp_assoc_id = sac->sac_assoc_id;
-        gst_sctp_association_change_state_unlocked (self,
-            GST_SCTP_ASSOCIATION_STATE_CONNECTED);
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "SCTP association connected!");
-      } else if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
-        g_info ("SCTP association already open");
-      } else {
-        g_info ("SCTP association in unexpected state");
-      }
-      g_mutex_unlock (&self->association_mutex);
+      handle_sctp_comm_up (self, sac);
       break;
     case SCTP_COMM_LOST:
-      g_info ("SCTP event SCTP_COMM_LOST received");
-      /* TODO: Tear down association */
-      g_mutex_lock (&self->association_mutex);
-      if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
-        gst_sctp_association_change_state_unlocked (self,
-            GST_SCTP_ASSOCIATION_STATE_DISCONNECTING);
-      }
-      if (self->state == GST_SCTP_ASSOCIATION_STATE_DISCONNECTING) {
-        gst_sctp_association_change_state_unlocked (self,
-            GST_SCTP_ASSOCIATION_STATE_DISCONNECTED);
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,
-            "SCTP association disconnected!");
-      }
-      g_mutex_unlock (&self->association_mutex);
+      handle_sctp_comm_lost_or_shutdown (self, sac);
       break;
     case SCTP_RESTART:
       g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,
@@ -841,20 +862,7 @@ handle_association_changed (GstSctpAssociation * self,
       break;
     case SCTP_SHUTDOWN_COMP:
       /* Occurs if in TCP mode when the far end sends SHUTDOWN */
-      g_info ("SCTP event SCTP_SHUTDOWN_COMP received");
-      /* TODO: Tear down association */
-      g_mutex_lock (&self->association_mutex);
-      if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
-        gst_sctp_association_change_state_unlocked (self,
-            GST_SCTP_ASSOCIATION_STATE_DISCONNECTING);
-      }
-      if (self->state == GST_SCTP_ASSOCIATION_STATE_DISCONNECTING) {
-        gst_sctp_association_change_state_unlocked (self,
-            GST_SCTP_ASSOCIATION_STATE_DISCONNECTED);
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,
-            "SCTP association disconnected!");
-      }
-      g_mutex_unlock (&self->association_mutex);
+      handle_sctp_comm_lost_or_shutdown (self, sac);
       break;
     case SCTP_CANT_STR_ASSOC:
       g_info ("SCTP event SCTP_CANT_STR_ASSOC received");
