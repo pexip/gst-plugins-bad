@@ -549,10 +549,9 @@ gst_sctp_association_reset_stream (GstSctpAssociation * self, guint16 stream_id)
   g_free (srs);
 }
 
-void
-gst_sctp_association_force_close (GstSctpAssociation * self)
+static void
+gst_sctp_association_force_close_unlocked (GstSctpAssociation * self)
 {
-  g_mutex_lock (&self->association_mutex);
   if (self->sctp_ass_sock) {
     usrsctp_close (self->sctp_ass_sock);
     self->sctp_ass_sock = NULL;
@@ -560,6 +559,13 @@ gst_sctp_association_force_close (GstSctpAssociation * self)
   }
   self->done_connect = FALSE;
   self->sctp_assoc_id = 0;
+}
+
+void
+gst_sctp_association_force_close (GstSctpAssociation * self)
+{
+  g_mutex_lock (&self->association_mutex);
+  gst_sctp_association_force_close_unlocked (self);
   g_mutex_unlock (&self->association_mutex);
 }
 
@@ -817,6 +823,15 @@ handle_sctp_comm_lost_or_shutdown (GstSctpAssociation * self,
   /* Fall through to ensure the transition to disconnected occurs */
 
   if (self->state == GST_SCTP_ASSOCIATION_STATE_DISCONNECTING) {
+    if (self->connection_thread) {
+      /* Release lock while waiting for connection thread to exit */
+      g_mutex_unlock (&self->association_mutex);
+      g_thread_join (self->connection_thread);
+      g_mutex_lock (&self->association_mutex);
+      self->connection_thread = NULL;
+    }
+    gst_sctp_association_force_close_unlocked (self);
+
     gst_sctp_association_change_state_unlocked (self,
         GST_SCTP_ASSOCIATION_STATE_DISCONNECTED);
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,
