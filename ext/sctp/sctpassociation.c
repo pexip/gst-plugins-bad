@@ -384,7 +384,8 @@ gst_sctp_association_start (GstSctpAssociation * self)
   gchar *thread_name;
 
   g_mutex_lock (&self->association_mutex);
-  if (self->state != GST_SCTP_ASSOCIATION_STATE_READY) {
+  if (self->state != GST_SCTP_ASSOCIATION_STATE_READY &&
+      self->state != GST_SCTP_ASSOCIATION_STATE_DISCONNECTED) {
     g_warning ("SCTP association is in wrong state and cannot be started");
     goto configure_required;
   }
