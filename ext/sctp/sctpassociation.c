@@ -126,8 +126,8 @@ static void handle_message (GstSctpAssociation * self, guint8 * data,
     guint32 datalen, guint16 stream_id, guint32 ppid);
 
 static void maybe_set_state_to_ready (GstSctpAssociation * self);
-static void gst_sctp_association_change_state (GstSctpAssociation * self,
-    GstSctpAssociationState new_state, gboolean notify);
+static void gst_sctp_association_change_state_unlocked (
+    GstSctpAssociation * self, GstSctpAssociationState new_state);
 
 static void
 gst_sctp_association_class_init (GstSctpAssociationClass * klass)
@@ -306,25 +306,14 @@ error:
 static void
 maybe_set_state_to_ready (GstSctpAssociation * self)
 {
-  gboolean signal_ready_state = FALSE;
-
   g_mutex_lock (&self->association_mutex);
   if ((self->state == GST_SCTP_ASSOCIATION_STATE_NEW) &&
       (self->local_port != 0 && self->remote_port != 0)
       && (self->packet_out_cb != NULL) && (self->packet_received_cb != NULL)) {
-    signal_ready_state = TRUE;
-    gst_sctp_association_change_state (self, GST_SCTP_ASSOCIATION_STATE_READY,
-        FALSE);
+    gst_sctp_association_change_state_unlocked (self,
+        GST_SCTP_ASSOCIATION_STATE_READY);
   }
   g_mutex_unlock (&self->association_mutex);
-
-  /* The reason the state is changed twice is that we do not want to change state with
-   * notification while the association_mutex is locked. If someone listens
-   * on property change and call this object a deadlock might occur.*/
-  if (signal_ready_state)
-    gst_sctp_association_change_state (self, GST_SCTP_ASSOCIATION_STATE_READY,
-        TRUE);
-
 }
 
 static void
@@ -403,15 +392,9 @@ gst_sctp_association_start (GstSctpAssociation * self)
   if ((self->sctp_ass_sock = create_sctp_socket (self)) == NULL)
     goto error;
 
-  gst_sctp_association_change_state (self,
-      GST_SCTP_ASSOCIATION_STATE_CONNECTING, FALSE);
+  gst_sctp_association_change_state_unlocked (self,
+      GST_SCTP_ASSOCIATION_STATE_CONNECTING);
   g_mutex_unlock (&self->association_mutex);
-
-  /* The reason the state is changed twice is that we do not want to change state with
-   * notification while the association_mutex is locked. If someone listens
-   * on property change and call this object a deadlock might occur.*/
-  gst_sctp_association_change_state (self,
-      GST_SCTP_ASSOCIATION_STATE_CONNECTING, TRUE);
 
   thread_name = g_strdup_printf ("connection_thread_%u", self->association_id);
   self->connection_thread = g_thread_new (thread_name,
@@ -420,10 +403,8 @@ gst_sctp_association_start (GstSctpAssociation * self)
 
   return TRUE;
 error:
-  g_mutex_unlock (&self->association_mutex);
-  gst_sctp_association_change_state (self, GST_SCTP_ASSOCIATION_STATE_ERROR,
-      TRUE);
-  return FALSE;
+  gst_sctp_association_change_state_unlocked (self,
+      GST_SCTP_ASSOCIATION_STATE_ERROR);
 configure_required:
   g_mutex_unlock (&self->association_mutex);
   return FALSE;
@@ -820,17 +801,14 @@ static void
 handle_association_changed (GstSctpAssociation * self,
     const struct sctp_assoc_change *sac)
 {
-  gboolean change_state = FALSE;
-  GstSctpAssociationState new_state;
-
   switch (sac->sac_state) {
     case SCTP_COMM_UP:
       g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "SCTP_COMM_UP()");
       g_mutex_lock (&self->association_mutex);
       if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTING) {
         self->sctp_assoc_id = sac->sac_assoc_id;
-        change_state = TRUE;
-        new_state = GST_SCTP_ASSOCIATION_STATE_CONNECTED;
+        gst_sctp_association_change_state_unlocked (self,
+            GST_SCTP_ASSOCIATION_STATE_CONNECTED);
         g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "SCTP association connected!");
       } else if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
         g_info ("SCTP association already open");
@@ -844,14 +822,12 @@ handle_association_changed (GstSctpAssociation * self,
       /* TODO: Tear down association */
       g_mutex_lock (&self->association_mutex);
       if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
-        g_mutex_unlock (&self->association_mutex);
-        gst_sctp_association_change_state (self,
-            GST_SCTP_ASSOCIATION_STATE_DISCONNECTING, TRUE);
-        g_mutex_lock (&self->association_mutex);
+        gst_sctp_association_change_state_unlocked (self,
+            GST_SCTP_ASSOCIATION_STATE_DISCONNECTING);
       }
       if (self->state == GST_SCTP_ASSOCIATION_STATE_DISCONNECTING) {
-        change_state = TRUE;
-        new_state = GST_SCTP_ASSOCIATION_STATE_DISCONNECTED;
+        gst_sctp_association_change_state_unlocked (self,
+            GST_SCTP_ASSOCIATION_STATE_DISCONNECTED);
         g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,
             "SCTP association disconnected!");
       }
@@ -867,14 +843,12 @@ handle_association_changed (GstSctpAssociation * self,
       /* TODO: Tear down association */
       g_mutex_lock (&self->association_mutex);
       if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
-        g_mutex_unlock (&self->association_mutex);
-        gst_sctp_association_change_state (self,
-            GST_SCTP_ASSOCIATION_STATE_DISCONNECTING, TRUE);
-        g_mutex_lock (&self->association_mutex);
+        gst_sctp_association_change_state_unlocked (self,
+            GST_SCTP_ASSOCIATION_STATE_DISCONNECTING);
       }
       if (self->state == GST_SCTP_ASSOCIATION_STATE_DISCONNECTING) {
-        change_state = TRUE;
-        new_state = GST_SCTP_ASSOCIATION_STATE_DISCONNECTED;
+        gst_sctp_association_change_state_unlocked (self,
+            GST_SCTP_ASSOCIATION_STATE_DISCONNECTED);
         g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,
             "SCTP association disconnected!");
       }
@@ -884,9 +858,6 @@ handle_association_changed (GstSctpAssociation * self,
       g_info ("SCTP event SCTP_CANT_STR_ASSOC received");
       break;
   }
-
-  if (change_state)
-    gst_sctp_association_change_state (self, new_state, TRUE);
 }
 
 static void
@@ -918,10 +889,14 @@ handle_message (GstSctpAssociation * self, guint8 * data, guint32 datalen,
 }
 
 static void
-gst_sctp_association_change_state (GstSctpAssociation * self,
-    GstSctpAssociationState new_state, gboolean notify)
+gst_sctp_association_change_state_unlocked (GstSctpAssociation * self,
+    GstSctpAssociationState new_state)
 {
+  /* Association mutex is held on entry */
   self->state = new_state;
-  if (notify)
-    g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_STATE]);
+  /* Unlock the mutex to emit the property change event to avoid deadlock
+   * if the client calls back into this object from its event handler. */
+  g_mutex_unlock (&self->association_mutex);
+  g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_STATE]);
+  g_mutex_lock (&self->association_mutex);
 }
