@@ -767,6 +767,11 @@ reconnect (GstSctpEnc * self)
   gint state;
 
   g_object_get (self->sctp_association, "state", &state, NULL);
+  if (state == GST_SCTP_ASSOCIATION_STATE_DISCONNECTING) {
+    self->reconnect_pending = TRUE;
+    return;
+  }
+
   if (state != GST_SCTP_ASSOCIATION_STATE_DISCONNECTED) {
     GST_WARNING_OBJECT (self, "Cannot reconnect in non-DISCONNECTED state.");
     return;
@@ -839,6 +844,10 @@ on_sctp_association_state_changed (GstSctpAssociation * sctp_association,
           FALSE);
       break;
     case GST_SCTP_ASSOCIATION_STATE_DISCONNECTED:
+      if (self->reconnect_pending) {
+        self->reconnect_pending = FALSE;
+        reconnect (self);
+      }
       break;
     case GST_SCTP_ASSOCIATION_STATE_ERROR:
       break;
