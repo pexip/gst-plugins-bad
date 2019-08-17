@@ -52,6 +52,7 @@ struct _GstSctpEnc
   gboolean use_sock_stream;
   gboolean debug_sctp;
   gboolean aggressive_heartbeat;
+  gboolean reconnect_pending;
 
   GstSctpAssociation *sctp_association;
   GstDataQueue *outbound_sctp_packet_queue;
