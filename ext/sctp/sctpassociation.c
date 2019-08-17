@@ -322,6 +322,8 @@ gst_sctp_association_get_property (GObject * object, guint prop_id,
 {
   GstSctpAssociation *self = GST_SCTP_ASSOCIATION (object);
 
+  g_mutex_lock (&self->association_mutex);
+
   switch (prop_id) {
     case PROP_ASSOCIATION_ID:
       g_value_set_uint (value, self->association_id);
@@ -348,6 +350,8 @@ gst_sctp_association_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (self, prop_id, pspec);
       break;
   }
+
+  g_mutex_unlock (&self->association_mutex);
 }
 
 /* Public functions */
