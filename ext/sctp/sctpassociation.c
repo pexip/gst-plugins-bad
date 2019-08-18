@@ -575,11 +575,26 @@ gst_sctp_association_force_close (GstSctpAssociation * self)
 }
 
 static void
-gst_sctp_association_disconnect_unlocked (GstSctpAssociation * self)
+gst_sctp_association_disconnect_unlocked (GstSctpAssociation * self,
+    gboolean try_shutdown)
 {
   if (self->state == GST_SCTP_ASSOCIATION_STATE_CONNECTED) {
     gst_sctp_association_change_state_unlocked (self,
         GST_SCTP_ASSOCIATION_STATE_DISCONNECTING);
+
+    if (try_shutdown && self->use_sock_stream && self->sctp_ass_sock) {
+      g_info ("SCTP association shutting down");
+      self->shutdown = FALSE;
+      if (usrsctp_shutdown (self->sctp_ass_sock, SHUT_RDWR) == 0) {
+        /* wait for shutdown to complete */
+        guint cs_to_wait = 100; /* 1s */
+        while (!self->shutdown && cs_to_wait > 0) {
+          g_usleep (G_USEC_PER_SEC / 100);
+          cs_to_wait--;
+        }
+        self->shutdown = FALSE;
+      }
+    }
   }
 
   /* Fall through to ensure the transition to disconnected occurs */
@@ -605,7 +620,7 @@ void
 gst_sctp_association_disconnect (GstSctpAssociation * self)
 {
   g_mutex_lock (&self->association_mutex);
-  gst_sctp_association_disconnect_unlocked (self);
+  gst_sctp_association_disconnect_unlocked (self, TRUE);
   g_mutex_unlock (&self->association_mutex);
 }
 
@@ -769,8 +784,9 @@ receive_cb (struct socket *sock, union sctp_sockstore addr, void *data,
   GstSctpAssociation *self = GST_SCTP_ASSOCIATION (ulp_info);
 
   if (!data) {
-    /* Not sure if this can happend. */
-    g_info ("Received empty data buffer");
+    /* This is a notification that socket shutdown is complete */
+    g_info ("Received shutdown complete notification");
+    self->shutdown = TRUE;
   } else {
     if (flags & MSG_NOTIFICATION) {
       handle_notification (self, (const union sctp_notification *) data,
@@ -903,7 +919,7 @@ handle_sctp_comm_lost_or_shutdown (GstSctpAssociation * self,
       "SCTP_COMM_LOST" : "SCTP_SHUTDOWN_COMP");
 
   g_mutex_lock (&self->association_mutex);
-  gst_sctp_association_disconnect_unlocked (self);
+  gst_sctp_association_disconnect_unlocked (self, FALSE);
   g_mutex_unlock (&self->association_mutex);
 }
 
