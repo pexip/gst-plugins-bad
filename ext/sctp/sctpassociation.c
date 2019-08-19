@@ -796,7 +796,35 @@ handle_association_changed (GstSctpAssociation * self,
       break;
     case SCTP_COMM_LOST:
       g_info ("SCTP event SCTP_COMM_LOST received");
-      /* TODO: Tear down association and signal that this has happend */
+      /* Tear down association and silently reconnect */
+      if (self->connection_thread) {
+        g_thread_join (self->connection_thread);
+        self->connection_thread = NULL;
+      }
+
+      g_mutex_lock (&self->association_mutex);
+      if (self->sctp_ass_sock) {
+        usrsctp_close (self->sctp_ass_sock);
+        self->sctp_ass_sock = NULL;
+      }
+      self->done_connect = FALSE;
+      self->sctp_ass_sock = create_sctp_socket (self);
+      if (!self->sctp_ass_sock) {
+        gst_sctp_association_change_state (self,
+            GST_SCTP_ASSOCIATION_STATE_ERROR, FALSE);
+      }
+      g_mutex_unlock (&self->association_mutex);
+
+      if (self->sctp_ass_sock) {
+        gchar * thread_name = g_strdup_printf ("connection_thread_%u",
+            self->association_id);
+        self->connection_thread = g_thread_new (thread_name,
+            (GThreadFunc) connection_thread_func, self);
+        g_free (thread_name);
+      } else {
+        gst_sctp_association_change_state (self,
+            GST_SCTP_ASSOCIATION_STATE_ERROR, TRUE);
+      }
       break;
     case SCTP_RESTART:
       g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,
