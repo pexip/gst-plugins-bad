@@ -740,13 +740,28 @@ client_role_connect (GstSctpAssociation * self)
 
   g_mutex_lock (&self->association_mutex);
   addr = get_sctp_socket_address (self, self->local_port);
-  ret =
-      usrsctp_bind (self->sctp_ass_sock, (struct sockaddr *) &addr,
-      sizeof (struct sockaddr_conn));
-  if (ret < 0) {
-    g_info ("usrsctp_bind() error: (%u) %s", errno, strerror (errno));
-    goto error;
-  }
+
+  /* After an SCTP association is reported as disconnected, there is
+   * a window of time before the underlying SCTP stack cleans up.
+   * If a client-initiated reconnect request occurs during this window
+   * then we will attempt to bind using the same address information
+   * which will fail with EADDRINUSE. Handle this by retrying whenever
+   * a bind fails in this way.
+   */
+  do {
+    ret =
+        usrsctp_bind (self->sctp_ass_sock, (struct sockaddr *) &addr,
+        sizeof (struct sockaddr_conn));
+    if (ret < 0) {
+      if (errno != EADDRINUSE) {
+        g_info ("usrsctp_bind() error: (%u) %s", errno, strerror (errno));
+        goto error;
+      }
+      g_mutex_unlock (&self->association_mutex);
+      g_usleep (G_USEC_PER_SEC / 100);
+      g_mutex_lock (&self->association_mutex);
+    }
+  } while (ret < 0);
 
   addr = get_sctp_socket_address (self, self->remote_port);
   ret =
