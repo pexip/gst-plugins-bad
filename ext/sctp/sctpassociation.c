@@ -441,13 +441,8 @@ gst_sctp_association_set_on_packet_out (GstSctpAssociation * self,
   g_return_if_fail (GST_SCTP_IS_ASSOCIATION (self));
 
   g_mutex_lock (&self->association_mutex);
-  if (self->state == GST_SCTP_ASSOCIATION_STATE_NEW) {
-    self->packet_out_cb = packet_out_cb;
-    self->packet_out_user_data = user_data;
-  } else {
-    /* This is to be thread safe. The Association might try to write to the closure already */
-    g_warning ("It is not possible to change packet callback in this state");
-  }
+  self->packet_out_cb = packet_out_cb;
+  self->packet_out_user_data = user_data;
   g_mutex_unlock (&self->association_mutex);
 
   maybe_set_state_to_ready (self);
@@ -460,13 +455,8 @@ gst_sctp_association_set_on_packet_received (GstSctpAssociation * self,
   g_return_if_fail (GST_SCTP_IS_ASSOCIATION (self));
 
   g_mutex_lock (&self->association_mutex);
-  if (self->state == GST_SCTP_ASSOCIATION_STATE_NEW) {
-    self->packet_received_cb = packet_received_cb;
-    self->packet_received_user_data = user_data;
-  } else {
-    /* This is to be thread safe. The Association might try to write to the closure already */
-    g_warning ("It is not possible to change receive callback in this state");
-  }
+  self->packet_received_cb = packet_received_cb;
+  self->packet_received_user_data = user_data;
   g_mutex_unlock (&self->association_mutex);
 
   maybe_set_state_to_ready (self);
