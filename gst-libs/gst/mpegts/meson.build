@@ -41,7 +41,8 @@ gstmpegts = library('gstmpegts-' + api_version,
   install : true,
   dependencies : [gst_dep],
 )
-if build_gir
+
+if false
   mpegts_gir = gnome.generate_gir(gstmpegts,
     sources : mpegts_sources + mpegts_headers,
     namespace : 'GstMpegts',
