@@ -46,7 +46,6 @@ struct _GstSctpEnc
   GstElement element;
 
   GstPad *src_pad;
-  GstFlowReturn src_ret;
   gboolean need_stream_start_caps, need_segment;
   guint32 sctp_association_id;
   guint16 remote_sctp_port;
