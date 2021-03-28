@@ -13,7 +13,13 @@ libparser_dep = declare_dependency(link_with: libparser,
 exif_dep = dependency('libexif', version : '>= 0.6.16', required : false)
 
 # Since nalutils API is internal, need to build it again
-nalutils_dep = gstcodecparsers_dep.partial_dependency (compile_args: true, includes: true)
+nalutils_lib = static_library('nalutils-test',
+  meson.current_source_dir() + '/../../gst-libs/gst/codecparsers/nalutils.c',
+  install : false,
+  dependencies : [gst_dep, gstcheck_dep],
+)
+nalutils_dep = declare_dependency(link_with : nalutils_lib,
+  dependencies : gstcodecparsers_dep.partial_dependency (compile_args: true, includes: true))
 
 enable_gst_player_tests = get_option('gst_player_tests')
 
@@ -56,7 +62,7 @@ base_tests = [
   [['libs/h265parser.c'], false, [gstcodecparsers_dep]],
   [['libs/insertbin.c'], false, [gstinsertbin_dep]],
   [['libs/isoff.c'], false, [gstisoff_dep]],
-  [['libs/nalutils.c', meson.current_source_dir() + '/../../gst-libs/gst/codecparsers/nalutils.c'], false, [nalutils_dep]],
+  [['libs/nalutils.c', ], false, [nalutils_dep]],
   [['libs/mpegts.c'], false, [gstmpegts_dep]],
   [['libs/mpegvideoparser.c'], false, [gstcodecparsers_dep]],
   [['libs/planaraudioadapter.c'], false, [gstbadaudio_dep]],
